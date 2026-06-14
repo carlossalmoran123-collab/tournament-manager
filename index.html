@@ -56,10 +56,13 @@
                 <div class="form-group">
                     <label>Categoría:</label>
                     <select required>
-                        <option>Micro Infantil</option>
+                        <option value="">-- Selecciona una categoría --</option>
+                        <option>Micro</option>
+                        <option>Infantil</option>
                         <option>Pasarela</option>
                         <option>Cadetes</option>
                         <option>Juvenil</option>
+                        <option>Juvenil Superior</option>
                         <option>Sub 21</option>
                         <option>Sub 23</option>
                     </select>
@@ -86,7 +89,12 @@
                         <option>Todos Contra Todos</option>
                         <option>Por Grupos</option>
                         <option>Eliminación Directa</option>
+                        <option>Mixto (Grupos + Eliminación)</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>Descripción (opcional):</label>
+                    <textarea placeholder="Detalles adicionales..."></textarea>
                 </div>
                 <button type="submit" class="btn-primary">✅ Crear Evento</button>
             </form>
