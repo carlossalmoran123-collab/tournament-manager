@@ -8,7 +8,6 @@
 </head>
 <body>
 
-    <!-- PANTALLA 1: SELECTOR GLOBAL DE COMPETICIONES -->
     <div id="competition-selector-screen" class="full-screen-selector">
         <button id="btn-global-admin" class="btn-admin-corner" onclick="switchSection('login', true)">🔐 Entrar como Admin</button>
 
@@ -16,13 +15,11 @@
             <h2>🏀 Selecciona una Competición</h2>
             <p>Elige el torneo activo para ver estadísticas, roles y resultados</p>
             <div id="competitionsList" class="competitions-grid">
-                <!-- Se llena dinámicamente con Firebase -->
-            </div>
+                </div>
             <button id="btn-show-create-comp" class="btn-primary admin-only-block" style="margin-top: 20px;">+ Crear Nueva Competición</button>
         </div>
     </div>
 
-    <!-- PANTALLA 2: CONTENIDO PRINCIPAL DE LA APLICACIÓN -->
     <div id="main-app-content" style="display: none;">
         <header>
             <div class="header-container">
@@ -40,37 +37,29 @@
         </nav>
 
         <main class="container">
-            <!-- SECCIÓN: TORNEOS ACTIVO (DASHBOARD) -->
             <section id="dashboard" class="section active">
                 <h2>Resumen de Categorías</h2>
                 <div id="categoriesGrid" class="categories-grid">
-                    <!-- Tarjetas de categorías dinámicas -->
-                </div>
+                    </div>
             </section>
 
-            <!-- SECCIÓN: DETALLE POR CATEGORÍAS -->
             <section id="categories" class="section">
                 <h2>Torneos por Categoría</h2>
                 <div id="categoryContainer" class="categories-container">
-                    <!-- Se llena vía JS -->
-                </div>
+                    </div>
             </section>
 
-            <!-- SECCIÓN: ROL DE JUEGOS EN TIEMPO REAL -->
             <section id="roles" class="section">
                 <div class="section-header">
                     <h2>Calendario y Resultados en Vivo</h2>
                 </div>
-                <div id="matchesListContainer" class="matches-list">
-                    <!-- Partidos en tiempo real -->
-                </div>
+                <div id="rolesByVenueContainer">
+                    </div>
             </section>
 
-            <!-- SECCIÓN: INICIAR SESIÓN / ADMINISTRACIÓN -->
             <section id="admin" class="section">
                 <div class="admin-panel">
                     
-                    <!-- Formulario 1: Registrar Equipos del Torneo -->
                     <div class="admin-card">
                         <h3>🛡️ Registrar Equipo</h3>
                         <form id="teamForm">
@@ -81,11 +70,26 @@
                             <input type="url" id="regTeamLogo" placeholder="https://enlace-de-imagen.com/logo.png">
                             <small style="color: #777; font-size: 0.8rem; display:block; margin-top:4px;">Pega el link de la foto de Facebook o servidor de imágenes.</small>
 
-                            <button type="submit" class="btn-primary" style="margin-top: 15px; width: 100%;">Guardar en Base de Datos</button>
+                            <button type="submit" class="btn-primary" style="margin-top: 15px; width: 100%;">Guardar Equipo</button>
                         </form>
                     </div>
 
-                    <!-- Formulario 2: Agendar Partido con Selectores -->
+                    <div class="admin-card">
+                        <h3>📍 Registrar Sede / Cancha</h3>
+                        <form id="venueForm">
+                            <label>Nombre de la Cancha:</label>
+                            <input type="text" id="venueName" placeholder="Ej: Cancha Municipal Huitzo" required>
+                            
+                            <label>Dirección Corta:</label>
+                            <input type="text" id="venueAddress" placeholder="Ej: Centro, San Pablo Huitzo" required>
+
+                            <label>Enlace de Google Maps:</label>
+                            <input type="url" id="venueMapsUrl" placeholder="https://maps.google.com/..." required>
+
+                            <button type="submit" class="btn-primary" style="margin-top: 15px; width: 100%;">Guardar Sede</button>
+                        </form>
+                    </div>
+
                     <div class="admin-card">
                         <h3>📅 Agendar Partido en el Rol</h3>
                         <form id="matchForm">
@@ -115,18 +119,30 @@
                                 </div>
                             </div>
 
-                            <label>Fecha y Hora:</label>
-                            <input type="datetime-local" id="matchDateTime" required>
+                            <label>Fecha del Partido:</label>
+                            <input type="date" id="matchDate" required>
 
-                            <label>Cancha / Ubicación:</label>
-                            <input type="text" id="matchCourt" placeholder="Ej: Cancha Municipal" required>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <label>Hora Inicio:</label>
+                                    <input type="time" id="matchStartTime" required>
+                                </div>
+                                <div>
+                                    <label>Hora Fin:</label>
+                                    <input type="time" id="matchEndTime" required>
+                                </div>
+                            </div>
+
+                            <label>Sede / Cancha:</label>
+                            <select id="selectMatchVenue" required>
+                                <option value="">-- Selecciona Cancha --</option>
+                            </select>
 
                             <button type="submit" class="btn-success" style="margin-top: 15px; width: 100%;">Agendar Partido</button>
                         </form>
                     </div>
 
-                    <!-- Formulario 3: Crear Nuevo Torneo -->
-                    <div class="admin-card">
+                    <div class="admin-card" style="grid-column: span 1;">
                         <h3>➕ Crear Nuevo Torneo</h3>
                         <form id="eventForm">
                             <label>Categoría Oficial:</label>
@@ -170,7 +186,6 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN: ACCESO LOGIN -->
             <section id="login" class="section">
                 <div class="auth-container">
                     <form id="loginForm" class="auth-form">
@@ -185,7 +200,6 @@
         </main>
     </div>
 
-    <!-- VENTANA MODAL 1: DETALLES DEL TORNEO -->
     <div id="eventModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
@@ -194,7 +208,6 @@
         </div>
     </div>
 
-    <!-- VENTANA MODAL 2: CREAR COMPETICIÓN GLOBAL -->
     <div id="compModal" class="modal">
         <div class="modal-content">
             <span class="close-comp">&times;</span>
@@ -209,7 +222,6 @@
         </div>
     </div>
 
-    <!-- VENTANA MODAL 3: CAPTURA DE MARCADORES EN VIVO -->
     <div id="scoreModal" class="modal">
         <div class="modal-content">
             <span class="close-score">&times;</span>

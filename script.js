@@ -13,7 +13,6 @@ const firebaseConfig = {
   measurementId: "G-3X518EN8K0"
 };
 
-// Inicialización de servicios
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -22,9 +21,9 @@ let isAdmin = false;
 let currentCompetitionId = null; 
 let dashboardCache = null;
 let unsubscribeMatches = null;   
-let unsubscribeTeams = null; // Escucha de equipos en tiempo real
+let unsubscribeTeams = null; 
+let unsubscribeVenues = null; // Escucha de sedes en tiempo real
 
-// Observador de sesión
 onAuthStateChanged(auth, (user) => {
   if (user) {
     isAdmin = true;
@@ -36,7 +35,6 @@ onAuthStateChanged(auth, (user) => {
   renderCompetitionsSelector(); 
 });
 
-// Categorías oficiales de básquetbol
 const CATEGORIES = [
   { id: 'micro-infantil', name: 'Micro Infantil', icon: '👶' },
   { id: 'pasarela', name: 'Pasarela', icon: '🧒' },
@@ -47,7 +45,7 @@ const CATEGORIES = [
   { id: 'sub23', name: 'Sub 23', icon: '👨‍🎓' }
 ];
 
-// --- GESTIÓN DE CONSULTAS FIRESTORE ---
+// --- OPERACIONES FIRESTORE ---
 class TournamentManager {
   async createCompetition(name, season) {
     const docRef = await addDoc(collection(db, "competitions"), { name, season, createdAt: new Date().toISOString() });
@@ -61,6 +59,10 @@ class TournamentManager {
 
   async createTeam(name, logoUrl) {
     await addDoc(collection(db, "teams"), { name, logoUrl, competitionId: currentCompetitionId });
+  }
+
+  async createVenue(name, address, mapsUrl) {
+    await addDoc(collection(db, "venues"), { name, address, mapsUrl, competitionId: currentCompetitionId });
   }
 
   async createEvent(eventData) {
@@ -96,7 +98,7 @@ class TournamentManager {
 
 const manager = new TournamentManager();
 
-// --- INICIALIZADORES ---
+// --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', () => {
   initializeEventListeners();
   renderCompetitionsSelector();
@@ -110,6 +112,7 @@ function initializeEventListeners() {
   document.getElementById('btn-back-to-selector')?.addEventListener('click', () => {
     if (unsubscribeMatches) { unsubscribeMatches(); unsubscribeMatches = null; } 
     if (unsubscribeTeams) { unsubscribeTeams(); unsubscribeTeams = null; }
+    if (unsubscribeVenues) { unsubscribeVenues(); unsubscribeVenues = null; }
     currentCompetitionId = null;
     dashboardCache = null;
     
@@ -139,19 +142,29 @@ function initializeEventListeners() {
     renderCompetitionsSelector();
   });
 
-  // NUEVO FORMULARIO: Registrar Equipo en la Base de Datos
   document.getElementById('teamForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('regTeamName').value.trim();
     const defaultLogo = "https://cdn-icons-png.flaticon.com/512/5267/5267337.png";
     const logoUrl = document.getElementById('regTeamLogo').value.trim() || defaultLogo;
+    await manager.createTeam(name, logoUrl);
+    alert(`🛡️ Equipo "${name}" registrado con éxito.`);
+    document.getElementById('teamForm').reset();
+  });
 
+  // NUEVO FORMULARIO: Registrar Sede en Firebase
+  document.getElementById('venueForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('venueName').value.trim();
+    const address = document.getElementById('venueAddress').value.trim();
+    const mapsUrl = document.getElementById('venueMapsUrl').value.trim();
+    
     try {
-      await manager.createTeam(name, logoUrl);
-      alert(`🛡️ Equipo "${name}" registrado con éxito en este torneo.`);
-      document.getElementById('teamForm').reset();
+      await manager.createVenue(name, address, mapsUrl);
+      alert(`📍 Cancha "${name}" agregada exitosamente.`);
+      document.getElementById('venueForm').reset();
     } catch (err) {
-      alert("Error al guardar equipo: " + err.message);
+      alert("Error al guardar la sede: " + err.message);
     }
   });
 
@@ -170,23 +183,20 @@ function initializeEventListeners() {
     switchSection('dashboard');
   });
 
-  // MODIFICADO: Agendar partido recuperando info de los selectores desplegables
+  // MODIFICADO: Agendar partido guardando el ID de la sede y el rango de horario
   document.getElementById('matchForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const localSelect = document.getElementById('selectLocal');
     const visitorSelect = document.getElementById('selectVisitor');
+    const venueSelect = document.getElementById('selectMatchVenue');
 
     const localName = localSelect.options[localSelect.selectedIndex].text;
     const localLogo = localSelect.value;
-
     const visitorName = visitorSelect.options[visitorSelect.selectedIndex].text;
     const visitorLogo = visitorSelect.value;
-
-    if (!localLogo || !visitorLogo) {
-      alert("⚠️ Por favor selecciona ambos equipos.");
-      return;
-    }
+    
+    const venueId = venueSelect.value;
 
     if (localLogo === visitorLogo) {
       alert("❌ Un equipo no puede jugar contra sí mismo.");
@@ -199,11 +209,13 @@ function initializeEventListeners() {
       localLogo: localLogo,
       visitor: visitorName,
       visitorLogo: visitorLogo,
-      dateTime: document.getElementById('matchDateTime').value,
-      court: document.getElementById('matchCourt').value
+      date: document.getElementById('matchDate').value,
+      startTime: document.getElementById('matchStartTime').value,
+      endTime: document.getElementById('matchEndTime').value,
+      venueId: venueId
     });
     
-    alert('📅 Encuentro enlazado y agendado con éxito.');
+    alert('📅 Partido agendado correctamente en la sede.');
     document.getElementById('matchForm').reset();
     switchSection('roles');
   });
@@ -247,33 +259,41 @@ window.selectCompetition = function(id, name) {
   document.getElementById('competition-selector-screen').style.display = 'none';
   document.getElementById('main-app-content').style.display = 'block';
   
-  // Activar escucha en tiempo real de los equipos para los dropdowns
-  listenToTeams();
+  // Activar escuchas activas en cascada
+  listenToTeamsAndVenues();
   switchSection('dashboard');
 };
 
-// NUEVA FUNCIÓN: Escucha la lista de equipos y llena los inputs dinámicamente
-function listenToTeams() {
+// Sincroniza listas desplegables de Equipos y Sedes
+function listenToTeamsAndVenues() {
   if (unsubscribeTeams) unsubscribeTeams();
+  if (unsubscribeVenues) unsubscribeVenues();
 
-  const q = query(collection(db, "teams"), where("competitionId", "==", currentCompetitionId));
-  
-  unsubscribeTeams = onSnapshot(q, (snapshot) => {
+  // Escucha Equipos
+  const qTeams = query(collection(db, "teams"), where("competitionId", "==", currentCompetitionId));
+  unsubscribeTeams = onSnapshot(qTeams, (snapshot) => {
     const localDropdown = document.getElementById('selectLocal');
     const visitorDropdown = document.getElementById('selectVisitor');
-    
     if(!localDropdown || !visitorDropdown) return;
-
     let optionsHtml = '<option value="">-- Selecciona Equipo --</option>';
-    
     snapshot.docs.forEach(doc => {
       const team = doc.data();
-      // Guardamos la URL del logo como el valor del option
       optionsHtml += `<option value="${team.logoUrl}">${team.name}</option>`;
     });
-
     localDropdown.innerHTML = optionsHtml;
     visitorDropdown.innerHTML = optionsHtml;
+  });
+
+  // Escucha Sedes
+  const qVenues = query(collection(db, "venues"), where("competitionId", "==", currentCompetitionId));
+  unsubscribeVenues = onSnapshot(qVenues, (snapshot) => {
+    const matchVenueSelect = document.getElementById('selectMatchVenue');
+    if (!matchVenueSelect) return;
+    let optionsHtml = '<option value="">-- Selecciona Cancha --</option>';
+    snapshot.docs.forEach(doc => {
+      optionsHtml += `<option value="${doc.id}">${doc.data().name}</option>`;
+    });
+    matchVenueSelect.innerHTML = optionsHtml;
   });
 }
 
@@ -293,7 +313,101 @@ function switchSection(sectionId, fromGlobalSelector = false) {
 
   if (sectionId === 'dashboard') renderDashboard();
   else if (sectionId === 'categories') renderCategories();
-  else if (sectionId === 'roles') renderMatches();
+  else if (sectionId === 'roles') renderMatchesByVenue();
+}
+
+// NUEVO RENDERIZADOR: Estructura visual de Sede -> Ubicación -> Rol de Juegos
+async function renderMatchesByVenue() {
+  const container = document.getElementById('rolesByVenueContainer');
+  if (!container) return;
+  container.innerHTML = '<div class="no-events">Conectando con las sedes en tiempo real...</div>';
+
+  if (unsubscribeMatches) unsubscribeMatches();
+
+  // 1. Traer las sedes de esta competición una vez para estructurar el árbol
+  const venuesSnap = await getDocs(query(collection(db, "venues"), where("competitionId", "==", currentCompetitionId)));
+  const venuesList = venuesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  if (venuesList.length === 0) {
+    container.innerHTML = '<div class="no-events">Primero registra al menos una Sede/Cancha en la consola Admin.</div>';
+    return;
+  }
+
+  // 2. Escuchar los partidos en vivo
+  const qMatches = query(collection(db, "matches"), where("competitionId", "==", currentCompetitionId));
+  unsubscribeMatches = onSnapshot(qMatches, (snapshot) => {
+    const allMatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    let fullHtml = '';
+
+    venuesList.forEach(venue => {
+      // Filtrar partidos asignados a esta cancha específica y ordenarlos de temprano a tarde
+      const venueMatches = allMatches.filter(m => m.venueId === venue.id);
+      venueMatches.sort((a, b) => {
+        if (a.date !== b.date) return new Date(a.date) - new Date(b.date);
+        return a.startTime.localeCompare(b.startTime);
+      });
+
+      let matchesHtml = '';
+      if (venueMatches.length === 0) {
+        matchesHtml = '<div class="no-events">No hay partidos programados en esta cancha.</div>';
+      } else {
+        matchesHtml = venueMatches.map(m => {
+          const isFinal = m.status === 'finalizado';
+          const scoreText = isFinal ? `${m.scoreLocal} - ${m.scoreVisitor}` : 'VS';
+          const badgeClass = isFinal ? 'score-badge' : 'score-badge pending';
+          
+          // Formatear fecha para el usuario
+          const dateFormatted = new Date(m.date + 'T00:00:00').toLocaleDateString('es-MX', {
+            month: 'short', day: 'numeric', weekday: 'short'
+          });
+
+          const defShield = "https://cdn-icons-png.flaticon.com/512/5267/5267337.png";
+          
+          return `
+            <div class="match-card">
+              <div class="match-info">
+                <span class="tag">${m.category.toUpperCase()}</span>
+                <p style="margin-top: 5px;">🗓️ ${dateFormatted}</p>
+                <p>⏰ <strong>${m.startTime}</strong> a <strong>${m.endTime}</strong> hrs</p>
+              </div>
+              <div class="match-vs-box">
+                <div class="team-box local">
+                  <span>${m.local}</span>
+                  <img src="${m.localLogo || defShield}" class="team-logo" alt="logo">
+                </div>
+                <span class="${badgeClass}">${scoreText}</span>
+                <div class="team-box visitor">
+                  <img src="${m.visitorLogo || defShield}" class="team-logo" alt="logo">
+                  <span>${m.visitor}</span>
+                </div>
+              </div>
+              <button class="btn-danger admin-only-block" onclick="openScoreModal('${m.id}', '${m.local}', '${m.visitor}')" style="padding:5px 10px; font-size:0.85em; margin-top:5px;">
+                ✍️ Marcador
+              </button>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // ESTRUCTURA SOLICITADA: Sede (Superior), Ubicación (Debajo) y luego el Rol
+      fullHtml += `
+        <div class="venue-block">
+          <div class="venue-header">
+            <h3>🏀 ${venue.name}</h3>
+            <a href="${venue.mapsUrl}" target="_blank" class="venue-map-link">
+              📍 Ver ubicación en Google Maps (${venue.address})
+            </a>
+          </div>
+          <div class="matches-list">
+            ${matchesHtml}
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = fullHtml;
+  });
 }
 
 async function renderDashboard() {
@@ -336,65 +450,6 @@ async function renderCategories() {
   } catch (error) { console.error(error); }
 }
 
-async function renderMatches() {
-  const container = document.getElementById('matchesListContainer');
-  if (!container) return;
-  container.innerHTML = '<div class="no-events">Conectando con la mesa de control en vivo...</div>';
-
-  if (unsubscribeMatches) { unsubscribeMatches(); } 
-  const q = query(collection(db, "matches"), where("competitionId", "==", currentCompetitionId));
-
-  unsubscribeMatches = onSnapshot(q, (snapshot) => {
-    if (snapshot.empty) {
-      container.innerHTML = '<div class="no-events">No hay partidos programados todavía.</div>';
-      return;
-    }
-
-    const matches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    matches.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
-
-    container.innerHTML = matches.map(m => {
-      const isFinal = m.status === 'finalizado';
-      const scoreText = isFinal ? `${m.scoreLocal} - ${m.scoreVisitor}` : 'VS';
-      const badgeClass = isFinal ? 'score-badge' : 'score-badge pending';
-      const dateFormatted = new Date(m.dateTime).toLocaleString('es-MX', {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-      });
-
-      const defShield = "https://cdn-icons-png.flaticon.com/512/5267/5267337.png";
-      const imgLocal = m.localLogo || defShield;
-      const imgVisitor = m.visitorLogo || defShield;
-      
-      return `
-        <div class="match-card">
-          <div class="match-info">
-            <span class="tag">${m.category.toUpperCase()}</span>
-            <p>📍 Cancha: <strong>${m.court}</strong></p>
-            <p>⏰ ${dateFormatted} hrs</p>
-          </div>
-          <div class="match-vs-box">
-            <div class="team-box local">
-              <span>${m.local}</span>
-              <img src="${imgLocal}" class="team-logo" alt="logo">
-            </div>
-            <span class="${badgeClass}">${scoreText}</span>
-            <div class="team-box visitor">
-              <img src="${imgVisitor}" class="team-logo" alt="logo">
-              <span>${m.visitor}</span>
-            </div>
-          </div>
-          <button class="btn-danger admin-only-block" onclick="openScoreModal('${m.id}', '${m.local}', '${m.visitor}')" style="padding:5px 10px; font-size:0.85em; margin-top:5px;">
-            ✍️ Capturar Marcador
-          </button>
-        </div>
-      `;
-    }).join('');
-  }, (error) => {
-    container.innerHTML = '<div class="no-events">Error de enlace real.</div>';
-    console.error(error);
-  });
-}
-
 window.openScoreModal = function(id, local, visitor) {
   document.getElementById('scoreMatchId').value = id;
   document.getElementById('lblLocal').textContent = local;
@@ -411,7 +466,7 @@ async function viewEvent(eventId) {
   document.getElementById('modalTitle').textContent = event.name;
   document.getElementById('modalBody').innerHTML = `
     <p><strong>Categoría:</strong> ${event.category.toUpperCase()}</p>
-    <p><strong>Sede:</strong> ${event.location}</p>
+    <p><strong>Sede principal:</strong> ${event.location}</p>
     <p><strong>Cupo:</strong> ${event.teamsCount} Equipos</p>
     <button class="btn-danger admin-only-block" onclick="deleteEvent('${eventId}')" style="margin-top:20px; width:100%;">Eliminar Torneo</button>
   `;
