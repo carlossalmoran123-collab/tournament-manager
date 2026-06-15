@@ -3,195 +3,231 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tournament Manager Pro 🏀</title>
+    <title>Mesa de Control - Torneos de Básquetbol</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
+    <!-- PANTALLA 1: SELECTOR GLOBAL DE COMPETICIONES -->
     <div id="competition-selector-screen" class="full-screen-selector">
+        <button id="btn-global-admin" class="btn-admin-corner" onclick="switchSection('login', true)">🔐 Entrar como Admin</button>
+
         <div class="selector-box">
             <h2>🏀 Selecciona una Competición</h2>
             <p>Elige el torneo activo para ver estadísticas, roles y resultados</p>
             <div id="competitionsList" class="competitions-grid">
-                </div>
+                <!-- Se llena dinámicamente con Firebase -->
+            </div>
             <button id="btn-show-create-comp" class="btn-primary admin-only-block" style="margin-top: 20px;">+ Crear Nueva Competición</button>
         </div>
     </div>
 
-    <div id="compModal" class="modal">
-        <div class="modal-content">
-            <span class="close-comp close">&times;</span>
-            <h2>Crear Nueva Competición</h2>
-            <form id="compForm">
-                <div class="form-group">
-                    <label for="compName">Nombre de la Competición / Liga</label>
-                    <input type="text" id="compName" placeholder="Ej. Liga Municipal Huitzo 2026" required>
-                </div>
-                <div class="form-group">
-                    <label for="compSeason">Temporada / Año</label>
-                    <input type="text" id="compSeason" placeholder="Ej. Temporada Apertura" required>
-                </div>
-                <button type="submit" class="btn-primary">Guardar en Firebase</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="main-app-content" class="container" style="display: none;">
-        
-        <header class="header">
-            <button id="btn-back-to-selector" class="btn-back">⬅️ Cambiar de Torneo</button>
-            <h1 id="activeCompTitle">🏀 Nombre de la Competición</h1>
-            <p id="activeCompSub">Gestión de Torneos, Categorías y Resultados</p>
+    <!-- PANTALLA 2: CONTENIDO PRINCIPAL DE LA APLICACIÓN -->
+    <div id="main-app-content" style="display: none;">
+        <header>
+            <div class="header-container">
+                <button id="btn-back-to-selector" class="btn-back">⬅️ Cambiar Torneo</button>
+                <h1 id="activeCompTitle">Cargando Competición...</h1>
+                <div id="admin-indicator" class="admin-badge admin-only-block">Modo Coach Activo</div>
+            </div>
         </header>
 
         <nav class="nav-tabs">
-            <button class="nav-btn active" data-section="dashboard">📊 Dashboard</button>
-            <button class="nav-btn" data-section="categories">🎒 Categorías</button>
-            <button class="nav-btn" data-section="roles">📅 Roles y Marcadores</button>
-            <button class="nav-btn admin-only-inline" data-section="create-event">➕ Crear Torneo</button>
-            <button class="nav-btn" data-section="login">🔒 Admin</button>
+            <button class="nav-btn active" data-section="dashboard">📊 Inicio</button>
+            <button class="nav-btn" data-section="categories">📅 Categorías</button>
+            <button class="nav-btn" data-section="roles">🏀 Rol de Juegos</button>
+            <button class="nav-btn admin-only-block" data-section="admin">⚙️ Consola Admin</button>
         </nav>
 
-        <div id="dashboard" class="section active">
-            <h2>Dashboard General</h2>
-            <div id="categoriesGrid"></div>
-        </div>
+        <main class="container">
+            <!-- SECCIÓN: TORNEOS ACTIVO (DASHBOARD) -->
+            <section id="dashboard" class="section active">
+                <h2>Resumen de Categorías</h2>
+                <div id="categoriesGrid" class="categories-grid">
+                    <!-- Tarjetas de categorías dinámicas -->
+                </div>
+            </section>
 
-        <div id="categories" class="section">
-            <h2>Control de Categorías</h2>
-            <div id="categoryContainer"></div>
-        </div>
+            <!-- SECCIÓN: DETALLE POR CATEGORÍAS -->
+            <section id="categories" class="section">
+                <h2>Torneos por Categoría</h2>
+                <div id="categoryContainer" class="categories-container">
+                    <!-- Se llena vía JS -->
+                </div>
+            </section>
 
-        <div id="roles" class="section">
-            <h2>Roles de Juego y Resultados</h2>
-            
-            <form id="matchForm" class="event-form admin-only-block" style="margin-bottom: 30px;">
-                <h3>⚽ Agregar Nuevo Encuentro</h3>
-                <div class="form-group">
-                    <label for="matchCategory">Categoría</label>
-                    <select id="matchCategory" required>
-                        <option value="micro-infantil">👶 Micro Infantil</option>
-                        <option value="pasarela">🧒 Pasarela</option>
-                        <option value="cadetes">👦 Cadetes</option>
-                        <option value="juvenil">👨 Juvenil</option>
-                        <option value="juvenil-superior">👨 Juvenil Superior</option>
-                        <option value="sub21">👨‍🎓 Sub 21</option>
-                        <option value="sub23">👨‍🎓 Sub 23</option>
-                    </select>
+            <!-- SECCIÓN: ROL DE JUEGOS EN TIEMPO REAL -->
+            <section id="roles" class="section">
+                <div class="section-header">
+                    <h2>Calendario y Resultados en Vivo</h2>
                 </div>
-                <div class="form-group">
-                    <label for="teamLocal">Equipo Local</label>
-                    <input type="text" id="teamLocal" placeholder="Ej. Linces Oaxaca" required>
+                <div id="matchesListContainer" class="matches-list">
+                    <!-- Partidos en tiempo real -->
                 </div>
-                <div class="form-group">
-                    <label for="teamVisitor">Equipo Visitante</label>
-                    <input type="text" id="teamVisitor" placeholder="Ej. Gavilanes" required>
-                </div>
-                <div class="form-group">
-                    <label for="matchDateTime">Fecha y Hora del Encuentro</label>
-                    <input type="datetime-local" id="matchDateTime" required>
-                </div>
-                <div class="form-group">
-                    <label for="matchCourt">Cancha / Sede</label>
-                    <input type="text" id="matchCourt" placeholder="Ej. Cancha Municipal Huitzo" required>
-                </div>
-                <button type="submit" class="btn-primary">Publicar Partido</button>
-            </form>
+            </section>
 
-            <div id="matchesListContainer">
-                </div>
-        </div>
+            <!-- SECCIÓN: INICIAR SESIÓN / ADMINISTRACIÓN -->
+            <section id="admin" class="section">
+                <div class="admin-panel">
+                    
+                    <!-- Formulario 1: Registrar Equipos del Torneo -->
+                    <div class="admin-card">
+                        <h3>🛡️ Registrar Equipo</h3>
+                        <form id="teamForm">
+                            <label>Nombre del Club / Equipo:</label>
+                            <input type="text" id="regTeamName" placeholder="Ej: Lobos Oaxaca" required>
+                            
+                            <label>URL del Logotipo:</label>
+                            <input type="url" id="regTeamLogo" placeholder="https://enlace-de-imagen.com/logo.png">
+                            <small style="color: #777; font-size: 0.8rem; display:block; margin-top:4px;">Pega el link de la foto de Facebook o servidor de imágenes.</small>
 
-        <div id="create-event" class="section">
-            <h2>Crear Nuevo Torneo de Categoría</h2>
-            <form id="eventForm" class="event-form">
-                <div class="form-group">
-                    <label for="eventCategory">Categoría</label>
-                    <select id="eventCategory" required>
-                        <option value="micro-infantil">👶 Micro Infantil</option>
-                        <option value="pasarela">🧒 Pasarela</option>
-                        <option value="cadetes">👦 Cadetes</option>
-                        <option value="juvenil">👨 Juvenil</option>
-                        <option value="juvenil-superior">👨 Juvenil Superior</option>
-                        <option value="sub21">👨‍🎓 Sub 21</option>
-                        <option value="sub23">👨‍🎓 Sub 23</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="eventName">Nombre del Torneo</label>
-                    <input type="text" id="eventName" placeholder="Ej. Copa Navidad 2026" required>
-                </div>
-                <div class="form-group">
-                    <label for="eventDate">Fecha de Inicio</label>
-                    <input type="date" id="eventDate" required>
-                </div>
-                <div class="form-group">
-                    <label for="eventLocation">Ubicación / Cancha</label>
-                    <input type="text" id="eventLocation" placeholder="Ej. Cancha Principal" required>
-                </div>
-                <div class="form-group">
-                    <label for="eventTeams">Límite de Equipos</label>
-                    <input type="number" id="eventTeams" placeholder="Ej. 12" min="2" required>
-                </div>
-                <div class="form-group">
-                    <label for="competitionFormat">Formato de Competencia</label>
-                    <select id="competitionFormat" required>
-                        <option value="todos-contra-todos">Todos Contra Todos (Round Robin)</option>
-                        <option value="grupos">Por Grupos</option>
-                        <option value="eliminacion">Eliminación Directa (Bracket)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="eventDescription">Descripción</label>
-                    <textarea id="eventDescription"></textarea>
-                </div>
-                <button type="submit" class="btn-primary">Guardar Torneo en Firebase</button>
-            </form>
-        </div>
+                            <button type="submit" class="btn-primary" style="margin-top: 15px; width: 100%;">Guardar en Base de Datos</button>
+                        </form>
+                    </div>
 
-        <div id="login" class="section">
-            <h2>Acceso Administrador</h2>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="loginEmail">Correo Electrónico</label>
-                    <input type="email" id="loginEmail" placeholder="admin@correo.com" required>
+                    <!-- Formulario 2: Agendar Partido con Selectores -->
+                    <div class="admin-card">
+                        <h3>📅 Agendar Partido en el Rol</h3>
+                        <form id="matchForm">
+                            <label>Categoría del Partido:</label>
+                            <select id="matchCategory" required>
+                                <option value="micro-infantil">👶 Micro Infantil</option>
+                                <option value="pasarela">🧒 Pasarela</option>
+                                <option value="cadetes">👦 Cadetes</option>
+                                <option value="juvenil">👨 Juvenil</option>
+                                <option value="juvenil-superior">👨 Juvenil Superior</option>
+                                <option value="sub21">👨‍🎓 Sub 21</option>
+                                <option value="sub23">👨‍🎓 Sub 23</option>
+                            </select>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <label>Equipo Local:</label>
+                                    <select id="selectLocal" required>
+                                        <option value="">-- Selecciona --</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Equipo Visitante:</label>
+                                    <select id="selectVisitor" required>
+                                        <option value="">-- Selecciona --</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <label>Fecha y Hora:</label>
+                            <input type="datetime-local" id="matchDateTime" required>
+
+                            <label>Cancha / Ubicación:</label>
+                            <input type="text" id="matchCourt" placeholder="Ej: Cancha Municipal" required>
+
+                            <button type="submit" class="btn-success" style="margin-top: 15px; width: 100%;">Agendar Partido</button>
+                        </form>
+                    </div>
+
+                    <!-- Formulario 3: Crear Nuevo Torneo -->
+                    <div class="admin-card">
+                        <h3>➕ Crear Nuevo Torneo</h3>
+                        <form id="eventForm">
+                            <label>Categoría Oficial:</label>
+                            <select id="eventCategory" required>
+                                <option value="micro-infantil">👶 Micro Infantil</option>
+                                <option value="pasarela">🧒 Pasarela</option>
+                                <option value="cadetes">👦 Cadetes</option>
+                                <option value="juvenil">👨 Juvenil</option>
+                                <option value="juvenil-superior">👨 Juvenil Superior</option>
+                                <option value="sub21">👨‍🎓 Sub 21</option>
+                                <option value="sub23">👨‍🎓 Sub 23</option>
+                            </select>
+
+                            <label>Nombre del Torneo:</label>
+                            <input type="text" id="eventName" placeholder="Ej: Torneo de Liga 2026" required>
+
+                            <label>Sede / Cancha Principal:</label>
+                            <input type="text" id="eventLocation" placeholder="Ej: Cancha Municipal" required>
+
+                            <label>Número de Equipos:</label>
+                            <input type="number" id="eventTeams" placeholder="Ej: 8" required>
+
+                            <label>Formato de Competencia:</label>
+                            <select id="competitionFormat">
+                                <option value="todos-contra-todos">Todos contra todos</option>
+                                <option value="eliminacion-directa">Eliminación directa</option>
+                                <option value="grupos">Fase de grupos + Liguilla</option>
+                            </select>
+
+                            <label>Notas adicionales:</label>
+                            <textarea id="eventDescription" placeholder="Reglas o especificaciones..."></textarea>
+
+                            <button type="submit" class="btn-primary" style="margin-top:10px; width:100%;">Publicar Torneo</button>
+                        </form>
+                    </div>
+
+                    <div class="admin-card text-center" style="grid-column: 1 / -1;">
+                        <h3>🔑 Sesión Administrativa</h3>
+                        <button id="logoutBtn" class="btn-danger">Cerrar Sesión de Coach</button>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="loginPassword">Contraseña</label>
-                    <input type="password" id="loginPassword" placeholder="******" required>
+            </section>
+
+            <!-- SECCIÓN: ACCESO LOGIN -->
+            <section id="login" class="section">
+                <div class="auth-container">
+                    <form id="loginForm" class="auth-form">
+                        <h3>🔐 Ingreso Mesa de Control</h3>
+                        <p>Solo personal autorizado y coaches</p>
+                        <input type="email" id="loginEmail" placeholder="Correo electrónico" required>
+                        <input type="password" id="loginPassword" placeholder="Contraseña" required>
+                        <button type="submit" class="btn-primary">Iniciar Sesión</button>
+                    </form>
                 </div>
-                <button type="submit" class="btn-primary">Iniciar Sesión</button>
-                <button type="button" id="logoutBtn" class="btn-danger" style="margin-top: 15px; width: 100%;">Cerrar Sesión Activa</button>
-            </form>
-        </div>
+            </section>
+        </main>
     </div>
 
+    <!-- VENTANA MODAL 1: DETALLES DEL TORNEO -->
     <div id="eventModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2 id="modalTitle">Nombre del Evento</h2>
+            <h2 id="modalTitle">Detalles</h2>
             <div id="modalBody"></div>
         </div>
     </div>
 
+    <!-- VENTANA MODAL 2: CREAR COMPETICIÓN GLOBAL -->
+    <div id="compModal" class="modal">
+        <div class="modal-content">
+            <span class="close-comp">&times;</span>
+            <h2>🏆 Nueva Competición Global</h2>
+            <form id="compForm">
+                <label>Nombre de la Liga / Copa:</label>
+                <input type="text" id="compName" placeholder="Ej: Liga Municipal Atzompa" required>
+                <label>Temporada / Año:</label>
+                <input type="text" id="compSeason" placeholder="Ej: Temporada 2026" required>
+                <button type="submit" class="btn-primary" style="margin-top:15px; width:100%;">Guardar Competición</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- VENTANA MODAL 3: CAPTURA DE MARCADORES EN VIVO -->
     <div id="scoreModal" class="modal">
         <div class="modal-content">
-            <span class="close-score close">&times;</span>
-            <h2>Actualizar Marcador Final</h2>
+            <span class="close-score">&times;</span>
+            <h2>🏀 Actualizar Marcador Final</h2>
             <form id="scoreForm">
                 <input type="hidden" id="scoreMatchId">
-                <div style="display: flex; gap: 20px; justify-content: space-around; margin: 20px 0;">
-                    <div style="text-align: center;">
-                        <label id="lblLocal" style="font-weight: bold; display: block; margin-bottom: 10px;"></label>
-                        <input type="number" id="scoreLocal" min="0" style="width: 80px; font-size: 1.5em; text-align: center; padding: 5px;" required>
+                <div class="score-fields-grid">
+                    <div class="score-field">
+                        <label id="lblLocal" style="font-weight: bold;"></label>
+                        <input type="number" id="scoreLocal" min="0" placeholder="0" required>
                     </div>
-                    <div style="font-size: 2em; align-self: center;">VS</div>
-                    <div style="text-align: center;">
-                        <label id="lblVisitor" style="font-weight: bold; display: block; margin-bottom: 10px;"></label>
-                        <input type="number" id="scoreVisitor" min="0" style="width: 80px; font-size: 1.5em; text-align: center; padding: 5px;" required>
+                    <div class="vs-divider">AL</div>
+                    <div class="score-field">
+                        <label id="lblVisitor" style="font-weight: bold;"></label>
+                        <input type="number" id="scoreVisitor" min="0" placeholder="0" required>
                     </div>
                 </div>
-                <button type="submit" class="btn-primary">Guardar Resultado Permanente</button>
+                <button type="submit" class="btn-success" style="margin-top: 20px; width: 100%;">Guardar en la Nube</button>
             </form>
         </div>
     </div>
