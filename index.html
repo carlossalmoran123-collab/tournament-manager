@@ -3,63 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mesa de Control - Torneos de Básquetbol</title>
+    <title>Liga de Básquetbol - Panel de Control</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts para un estilo deportivo moderno -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div id="competition-selector-screen" class="full-screen-selector">
-        <button id="btn-global-admin" class="btn-admin-corner" onclick="switchSection('login', true)">🔐 Entrar como Admin</button>
+    <!-- PANTALLA 1: SELECTOR GLOBAL DE TORNEOS -->
+    <div id="competition-selector-screen" class="selector-screen">
+        <div class="selector-card">
+            <div class="selector-header">
+                <h2>🏀 Selector de Competencias</h2>
+                <p>Elige el torneo activo que deseas visualizar o administrar</p>
+            </div>
+            
+            <div class="selector-body">
+                <label for="globalCompetitionSelect">Torneo o Copa Disponible:</label>
+                <select id="globalCompetitionSelect">
+                    <!-- Se llena dinámicamente desde Firebase -->
+                </select>
+                <button id="btnEnterApp" class="btn-primary" style="margin-top: 20px; width: 100%; padding: 14px;">
+                    Ingresar a la Liga 🚀
+                </button>
+            </div>
 
-        <div class="selector-box">
-            <h2>🏀 Selecciona una Competición</h2>
-            <p>Elige el torneo activo para ver estadísticas, roles y resultados</p>
-            <div id="competitionsList" class="competitions-grid">
-                </div>
-            <button id="btn-show-create-comp" class="btn-primary admin-only-block" style="margin-top: 20px;">+ Crear Nueva Competición</button>
+            <!-- Acceso rápido flotante para administradores -->
+            <div class="selector-footer">
+                <button onclick="switchSection('login', true)" class="btn-link">🔑 Ingreso Mesa de Control</button>
+            </div>
         </div>
     </div>
 
+    <!-- PANTALLA 2: CONTENEDOR PRINCIPAL DE LA APLICACIÓN -->
     <div id="main-app-content" style="display: none;">
-        <header>
-            <div class="header-container">
-                <button id="btn-back-to-selector" class="btn-back">⬅️ Cambiar Torneo</button>
-                <h1 id="activeCompTitle">Cargando Competición...</h1>
-                <div id="admin-indicator" class="admin-badge admin-only-block">Modo Coach Activo</div>
+        
+        <!-- ENCABEZADO DE LA APLICACIÓN -->
+        <header class="app-header">
+            <div class="header-top">
+                <button id="btnBackToSelector" class="btn-secondary-outline">🔄 Cambiar Torneo</button>
+                <div class="badge-admin admin-only-block">⚡ Modo Coach Activo</div>
+            </div>
+            <div class="header-main">
+                <h1 id="appTournamentTitle">Cargando Torneo...</h1>
+                <p id="appTournamentDetail">📍 <span id="appTournamentVenue">--</span> | <span id="appTournamentFormat">--</span></p>
             </div>
         </header>
 
-        <nav class="nav-tabs">
-            <button class="nav-btn active" data-section="dashboard">📊 Inicio</button>
-            <button class="nav-btn" data-section="categories">📅 Categorías</button>
-            <button class="nav-btn" data-section="roles">🏀 Rol de Juegos</button>
-            <button class="nav-btn admin-only-block" data-section="admin">⚙️ Consola Admin</button>
+        <!-- NAVEGACIÓN PRINCIPAL (TABS) -->
+        <nav class="app-nav">
+            <button class="nav-btn active" data-section="dashboard" onclick="switchSection('dashboard')">📈 Inicio</button>
+            <button class="nav-btn" data-section="categories" onclick="switchSection('categories')">🏀 Categorías</button>
+            <button class="nav-btn" data-section="roles" onclick="switchSection('roles')">📅 Rol Regular</button>
+            <button class="nav-btn" data-section="admin" onclick="switchSection('admin')">⚙️ Consola Admin</button>
         </nav>
 
-        <main class="container">
+        <!-- CONTENIDO DINÁMICO -->
+        <main class="app-container">
+
+            <!-- SECCIÓN: INICIO / RESUMEN -->
             <section id="dashboard" class="section active">
-                <h2>Resumen de Categorías</h2>
-                <div id="categoriesGrid" class="categories-grid">
+                <div class="welcome-card">
+                    <h2>¡Bienvenido a la Mesa de Control Virtual!</h2>
+                    <p>Consulta estadísticas en tiempo real, roles de juego calendarizados por sedes y la gestión total de nuestras categorías infantiles y juveniles.</p>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <span class="stat-icon">🛡️</span>
+                        <div class="stat-info">
+                            <h3 id="dashTeamsCount">0</h3>
+                            <p>Equipos Inscritos</p>
+                        </div>
                     </div>
+                    <div class="stat-card">
+                        <span class="stat-icon">📅</span>
+                        <div class="stat-info">
+                            <h3 id="dashMatchesCount">0</h3>
+                            <p>Partidos en el Rol</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-list-block">
+                    <h3>🏆 Clubes Participantes</h3>
+                    <div id="dashboardTeamsContainer" class="teams-pill-grid">
+                        <!-- Render dinámico de equipos con logotipos -->
+                    </div>
+                </div>
             </section>
 
+            <!-- SECCIÓN: CATEGORÍAS -->
             <section id="categories" class="section">
-                <h2>Torneos por Categoría</h2>
-                <div id="categoryContainer" class="categories-container">
-                    </div>
+                <div class="section-header">
+                    <h2>🏀 Categorías del Torneo</h2>
+                    <p>Filtra la información y visualiza los equipos clasificados por su año de nacimiento.</p>
+                </div>
+                <div id="categoriesContainer" class="categories-grid">
+                    <!-- Tarjetas de categorías autogeneradas -->
+                </div>
             </section>
 
+            <!-- SECCIÓN: ROL DE JUEGOS (CALENDARIZADO POR CANCHAS) -->
             <section id="roles" class="section">
                 <div class="section-header">
-                    <h2>Calendario y Resultados en Vivo</h2>
+                    <h2>📅 Rol de Juegos Regular</h2>
+                    <p>Visualiza la programación completa dividida cronológicamente por cada Sede o Cancha oficial.</p>
                 </div>
-                <div id="rolesByVenueContainer">
-                    </div>
+                <div id="venuesRolesContainer">
+                    <!-- Estructura jerárquica: Cancha -> Fecha -> Bloque de Partidos -->
+                </div>
             </section>
 
+            <!-- SECCIÓN: CONSOLA ADMIN / INICIAR SESIÓN (DINÁMICA) -->
             <section id="admin" class="section">
-                <div class="admin-panel">
+                
+                <!-- VISTA A: FORMULARIO DE INGRESO (Se muestra si NO has iniciado sesión) -->
+                <div id="admin-login-box" class="auth-container">
+                    <form id="loginForm" class="auth-form">
+                        <h3>🔐 Ingreso Mesa de Control</h3>
+                        <p>Introduce tus credenciales para habilitar las herramientas de Coach</p>
+                        
+                        <label style="text-align: left;">Correo Electrónico:</label>
+                        <input type="email" id="loginEmail" placeholder="ejemplo@correo.com" required>
+                        
+                        <label style="text-align: left; margin-top: 10px;">Contraseña:</label>
+                        <input type="password" id="loginPassword" placeholder="••••••••" required>
+                        
+                        <button type="submit" class="btn-primary" style="margin-top: 20px; width: 100%;">Iniciar Sesión</button>
+                    </form>
+                </div>
+
+                <!-- VISTA B: PANELES DE CONTROL (Se muestran SOLO si ya estás logueado) -->
+                <div id="admin-dashboard-panels" class="admin-panel" style="display: none;">
                     
+                    <!-- Tarjeta 1: Registrar Equipos -->
                     <div class="admin-card">
                         <h3>🛡️ Registrar Equipo</h3>
                         <form id="teamForm">
@@ -74,6 +152,7 @@
                         </form>
                     </div>
 
+                    <!-- Tarjeta 2: Registrar Sedes / Canchas -->
                     <div class="admin-card">
                         <h3>📍 Registrar Sede / Cancha</h3>
                         <form id="venueForm">
@@ -90,6 +169,7 @@
                         </form>
                     </div>
 
+                    <!-- Tarjeta 3: Agendar Partido -->
                     <div class="admin-card">
                         <h3>📅 Agendar Partido en el Rol</h3>
                         <form id="matchForm">
@@ -142,7 +222,8 @@
                         </form>
                     </div>
 
-                    <div class="admin-card" style="grid-column: span 1;">
+                    <!-- Tarjeta 4: Crear Nuevo Torneo -->
+                    <div class="admin-card">
                         <h3>➕ Crear Nuevo Torneo</h3>
                         <form id="eventForm">
                             <label>Categoría Oficial:</label>
@@ -179,71 +260,18 @@
                         </form>
                     </div>
 
-                    <div class="admin-card text-center" style="grid-column: 1 / -1;">
-                        <h3>🔑 Sesión Administrativa</h3>
-                        <button id="logoutBtn" class="btn-danger">Cerrar Sesión de Coach</button>
+                    <!-- Botón de salida global -->
+                    <div class="admin-card text-center" style="grid-column: 1 / -1; background: #fff5f5; border: 1px solid #ffe3e3;">
+                        <h3 style="color: var(--danger-color); border: none; margin-bottom: 5px;">Cerrar Sesión</h3>
+                        <p style="font-size: 0.9rem; color: #555; margin-bottom: 15px;">Bloquear de nuevo las funciones de edición en todos los menús.</p>
+                        <button id="logoutBtn" class="btn-danger" style="padding: 10px 30px;">Salir del Modo Administrador</button>
                     </div>
-                </div>
-            </section>
-
-            <section id="login" class="section">
-                <div class="auth-container">
-                    <form id="loginForm" class="auth-form">
-                        <h3>🔐 Ingreso Mesa de Control</h3>
-                        <p>Solo personal autorizado y coaches</p>
-                        <input type="email" id="loginEmail" placeholder="Correo electrónico" required>
-                        <input type="password" id="loginPassword" placeholder="Contraseña" required>
-                        <button type="submit" class="btn-primary">Iniciar Sesión</button>
-                    </form>
                 </div>
             </section>
         </main>
     </div>
 
-    <div id="eventModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modalTitle">Detalles</h2>
-            <div id="modalBody"></div>
-        </div>
-    </div>
-
-    <div id="compModal" class="modal">
-        <div class="modal-content">
-            <span class="close-comp">&times;</span>
-            <h2>🏆 Nueva Competición Global</h2>
-            <form id="compForm">
-                <label>Nombre de la Liga / Copa:</label>
-                <input type="text" id="compName" placeholder="Ej: Liga Municipal Atzompa" required>
-                <label>Temporada / Año:</label>
-                <input type="text" id="compSeason" placeholder="Ej: Temporada 2026" required>
-                <button type="submit" class="btn-primary" style="margin-top:15px; width:100%;">Guardar Competición</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="scoreModal" class="modal">
-        <div class="modal-content">
-            <span class="close-score">&times;</span>
-            <h2>🏀 Actualizar Marcador Final</h2>
-            <form id="scoreForm">
-                <input type="hidden" id="scoreMatchId">
-                <div class="score-fields-grid">
-                    <div class="score-field">
-                        <label id="lblLocal" style="font-weight: bold;"></label>
-                        <input type="number" id="scoreLocal" min="0" placeholder="0" required>
-                    </div>
-                    <div class="vs-divider">AL</div>
-                    <div class="score-field">
-                        <label id="lblVisitor" style="font-weight: bold;"></label>
-                        <input type="number" id="scoreVisitor" min="0" placeholder="0" required>
-                    </div>
-                </div>
-                <button type="submit" class="btn-success" style="margin-top: 20px; width: 100%;">Guardar en la Nube</button>
-            </form>
-        </div>
-    </div>
-
+    <!-- Firebase App y SDKs necesarios -->
     <script type="module" src="script.js"></script>
 </body>
 </html>
