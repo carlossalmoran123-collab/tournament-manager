@@ -21,13 +21,15 @@ const db = getFirestore(app);
 
 let isAdmin = false;
 
-// Observador para verificar si la sesión de administrador está activa al actualizar
+// 🔐 CONTROL DE ACCESO VISUAL: Observador de sesión
 onAuthStateChanged(auth, (user) => {
   if (user) {
     isAdmin = true;
+    document.body.classList.add('is-admin'); // ✨ Activa visualmente los formularios y botones ocultos
     console.log("🏀 Sesión de Administrador activa:", user.email);
   } else {
     isAdmin = false;
+    document.body.classList.remove('is-admin'); // ✨ Esconde todo para los usuarios públicos / espectadores
     console.log("👤 Modo espectador público.");
   }
 });

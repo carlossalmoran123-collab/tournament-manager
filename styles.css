@@ -354,3 +354,15 @@ body {
     margin-bottom: 8px;
     line-height: 1.5;
 }
+
+/* 🔐 SEGURIDAD: Ocultar herramientas de administración a usuarios públicos */
+.event-form, 
+#eventModal .btn-danger {
+    display: none !important;
+}
+
+/* Mostrar las herramientas única y exclusivamente cuando el Administrador inicie sesión */
+body.is-admin .event-form,
+body.is-admin #eventModal .btn-danger {
+    display: block !important;
+}
