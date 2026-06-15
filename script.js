@@ -1,409 +1,289 @@
-// Tournament Manager - JavaScript
+// Importar librerías desde la CDN oficial de Firebase v10
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, doc, query, where, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Categorías disponibles
-const CATEGORIES = [
-    { id: 'micro-infantil', name: 'Micro Infantil', icon: '👶' },
-    { id: 'pasarela', name: 'Pasarela', icon: '🧒' },
-    { id: 'cadetes', name: 'Cadetes', icon: '👦' },
-    { id: 'juvenil', name: 'Juvenil', icon: '👨' },
-    { id: 'juvenil-superior', name: 'Juvenil Superior', icon: '👨' },
-    { id: 'sub21', name: 'Sub 21', icon: '👨‍🎓' },
-    { id: 'sub23', name: 'Sub 23', icon: '👨‍🎓' }
-];
-
-// Formatos de competencia
-const COMPETITION_FORMATS = {
-    'todos-contra-todos': 'Todos Contra Todos (Round Robin)',
-    'grupos': 'Por Grupos',
-    'eliminacion': 'Eliminación Directa (Bracket)',
-    'mixto': 'Mixto (Grupos + Eliminación)'
+// Tu configuración real de Firebase en la nube
+const firebaseConfig = {
+  apiKey: "AIzaSyBO9aONmgDYECQOwI-NDorIAP88FekJuU0",
+  authDomain: "torneos-basquetbol.firebaseapp.com",
+  projectId: "torneos-basquetbol",
+  storageBucket: "torneos-basquetbol.firebasestorage.app",
+  messagingSenderId: "758350808798",
+  appId: "1:758350808798:web:c14326668c6c31631fe44f",
+  measurementId: "G-3X518EN8K0"
 };
 
-// Almacenamiento de datos (localStorage)
+// Inicializar servicios de Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let isAdmin = false;
+
+// Observador para verificar si la sesión de administrador está activa al actualizar
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    isAdmin = true;
+    console.log("🏀 Sesión de Administrador activa:", user.email);
+  } else {
+    isAdmin = false;
+    console.log("👤 Modo espectador público.");
+  }
+});
+
+// Categorías oficiales de básquetbol y esquemas de juego
+const CATEGORIES = [
+  { id: 'micro-infantil', name: 'Micro Infantil', icon: '👶' },
+  { id: 'pasarela', name: 'Pasarela', icon: '🧒' },
+  { id: 'cadetes', name: 'Cadetes', icon: '👦' },
+  { id: 'juvenil', name: 'Juvenil', icon: '👨' },
+  { id: 'juvenil-superior', name: 'Juvenil Superior', icon: '👨' },
+  { id: 'sub21', name: 'Sub 21', icon: '👨‍🎓' },
+  { id: 'sub23', name: 'Sub 23', icon: '👨‍🎓' }
+];
+
+const COMPETITION_FORMATS = {
+  'todos-contra-todos': 'Todos Contra Todos (Round Robin)',
+  'grupos': 'Por Grupos',
+  'eliminacion': 'Eliminación Directa (Bracket)',
+  'mixto': 'Mixto (Grupos + Eliminación)'
+};
+
+// --- Manejo de la Base de Datos Firestore ---
 class TournamentManager {
-    constructor() {
-        this.events = this.loadEvents();
-    }
+  async createEvent(eventData) {
+    const docRef = await addDoc(collection(db, "events"), {
+      ...eventData,
+      teams: [],
+      matches: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    return docRef.id;
+  }
 
-    loadEvents() {
-        const stored = localStorage.getItem('tournaments');
-        return stored ? JSON.parse(stored) : {};
-    }
+  async getEventsByCategory(categoryId) {
+    const q = query(collection(db, "events"), where("category", "==", categoryId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  }
 
-    saveEvents() {
-        localStorage.setItem('tournaments', JSON.stringify(this.events));
-    }
+  async getEvent(eventId) {
+    const docRef = doc(db, "events", eventId);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+  }
 
-    createEvent(eventData) {
-        const eventId = `event_${Date.now()}`;
-        this.events[eventId] = {
-            id: eventId,
-            ...eventData,
-            teams: [],
-            matches: [],
-            standings: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-        this.saveEvents();
-        return eventId;
-    }
-
-    getEventsByCategory(categoryId) {
-        return Object.values(this.events).filter(e => e.category === categoryId);
-    }
-
-    getEvent(eventId) {
-        return this.events[eventId];
-    }
-
-    updateEvent(eventId, updates) {
-        if (this.events[eventId]) {
-            this.events[eventId] = {
-                ...this.events[eventId],
-                ...updates,
-                updatedAt: new Date().toISOString()
-            };
-            this.saveEvents();
-            return this.events[eventId];
-        }
-        return null;
-    }
-
-    addTeamToEvent(eventId, teamName) {
-        const event = this.events[eventId];
-        if (event) {
-            event.teams = event.teams || [];
-            event.teams.push({
-                id: `team_${Date.now()}`,
-                name: teamName,
-                points: 0,
-                wins: 0,
-                losses: 0,
-                gamesPlayed: 0
-            });
-            this.saveEvents();
-            return event.teams[event.teams.length - 1];
-        }
-        return null;
-    }
-
-    addMatchResult(eventId, matchData) {
-        const event = this.events[eventId];
-        if (event) {
-            event.matches = event.matches || [];
-            event.matches.push({
-                id: `match_${Date.now()}`,
-                ...matchData,
-                quarters: matchData.quarters || [],
-                createdAt: new Date().toISOString()
-            });
-            this.saveEvents();
-            return event.matches[event.matches.length - 1];
-        }
-        return null;
-    }
-
-    generateRoundRobinSchedule(eventId) {
-        const event = this.events[eventId];
-        if (!event || !event.teams) return [];
-
-        const teams = event.teams;
-        const matches = [];
-        const n = teams.length;
-
-        for (let i = 0; i < n; i++) {
-            for (let j = i + 1; j < n; j++) {
-                matches.push({
-                    id: `match_${Date.now()}_${i}_${j}`,
-                    team1Id: teams[i].id,
-                    team1Name: teams[i].name,
-                    team2Id: teams[j].id,
-                    team2Name: teams[j].name,
-                    team1Score: 0,
-                    team2Score: 0,
-                    quarters: [],
-                    played: false
-                });
-            }
-        }
-        return matches;
-    }
-
-    generateEliminationBracket(eventId) {
-        const event = this.events[eventId];
-        if (!event || !event.teams) return [];
-
-        const teams = event.teams;
-        const n = teams.length;
-        const rounds = Math.ceil(Math.log2(n));
-        const brackets = [];
-
-        let round1Teams = [...teams];
-        // Shuffle for random bracket
-        for (let i = round1Teams.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [round1Teams[i], round1Teams[j]] = [round1Teams[j], round1Teams[i]];
-        }
-
-        let currentRound = round1Teams;
-        for (let r = 0; r < rounds; r++) {
-            const matches = [];
-            for (let i = 0; i < currentRound.length; i += 2) {
-                if (i + 1 < currentRound.length) {
-                    matches.push({
-                        id: `match_r${r}_${i / 2}`,
-                        team1Id: currentRound[i].id || null,
-                        team1Name: currentRound[i].name || 'TBD',
-                        team2Id: currentRound[i + 1].id || null,
-                        team2Name: currentRound[i + 1].name || 'TBD',
-                        team1Score: 0,
-                        team2Score: 0,
-                        quarters: [],
-                        played: false
-                    });
-                }
-            }
-            brackets.push({
-                round: r + 1,
-                roundName: r === rounds - 1 ? 'Final' : r === rounds - 2 ? 'Semifinal' : `Round ${r + 1}`,
-                matches: matches
-            });
-            // Prepare next round (winners only)
-            currentRound = matches.map(m => ({ id: null, name: 'TBD' }));
-        }
-        return brackets;
-    }
+  async deleteEvent(eventId) {
+    await deleteDoc(doc(db, "events", eventId));
+  }
 }
 
-// Instancia global
 const manager = new TournamentManager();
 
-// ============ DOM Management ============
-
+// --- Event Listeners de la Interfaz ---
 document.addEventListener('DOMContentLoaded', function () {
-    initializeEventListeners();
-    renderDashboard();
+  initializeEventListeners();
+  renderDashboard();
 });
 
 function initializeEventListeners() {
-    // Tab navigation
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const section = this.dataset.section;
-            switchSection(section);
-        });
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      switchSection(this.dataset.section);
     });
+  });
 
-    // Event form submission
-    const eventForm = document.getElementById('eventForm');
-    if (eventForm) {
-        eventForm.addEventListener('submit', handleEventFormSubmit);
-    }
+  const eventForm = document.getElementById('eventForm');
+  if (eventForm) {
+    eventForm.addEventListener('submit', handleEventFormSubmit);
+  }
 
-    // Modal close
-    const modal = document.getElementById('eventModal');
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLoginSubmit);
+  }
+
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
+
+  const modal = document.getElementById('eventModal');
+  if (modal) {
     const closeBtn = modal.querySelector('.close');
-    closeBtn.addEventListener('click', () => {
-        modal.classList.remove('show');
-    });
+    if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.remove('show'));
     window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.classList.remove('show');
-        }
+      if (e.target === modal) modal.classList.remove('show');
     });
+  }
 }
 
 function switchSection(sectionId) {
-    // Hide all sections
-    document.querySelectorAll('.section').forEach(s => {
-        s.classList.remove('active');
-    });
-    document.querySelectorAll('.nav-btn').forEach(b => {
-        b.classList.remove('active');
-    });
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-    // Show selected section
-    document.getElementById(sectionId).classList.add('active');
-    document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
+  const targetSection = document.getElementById(sectionId);
+  const targetBtn = document.querySelector(`[data-section="${sectionId}"]`);
 
-    // Render content based on section
-    if (sectionId === 'dashboard') {
-        renderDashboard();
-    } else if (sectionId === 'categories') {
-        renderCategories();
-    }
+  if (targetSection) targetSection.classList.add('active');
+  if (targetBtn) targetBtn.classList.add('active');
+
+  if (sectionId === 'dashboard') renderDashboard();
+  else if (sectionId === 'categories') renderCategories();
 }
 
-function renderDashboard() {
-    const grid = document.getElementById('categoriesGrid');
-    grid.innerHTML = '';
+// --- Renderizado de Datos ---
+async function renderDashboard() {
+  const grid = document.getElementById('categoriesGrid');
+  if (!grid) return;
+  grid.innerHTML = 'Cargando estadísticas...';
 
-    CATEGORIES.forEach(category => {
-        const events = manager.getEventsByCategory(category.id);
-        const card = document.createElement('div');
-        card.className = 'category-card';
-        card.innerHTML = `
-            <h3>${category.icon} ${category.name}</h3>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-value">${events.length}</div>
-                    <div class="stat-label">Eventos</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">${events.reduce((sum, e) => sum + (e.teams ? e.teams.length : 0), 0)}</div>
-                    <div class="stat-label">Equipos</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">${events.reduce((sum, e) => sum + (e.matches ? e.matches.length : 0), 0)}</div>
-                    <div class="stat-label">Partidos</div>
-                </div>
-            </div>
-        `;
-        card.addEventListener('click', () => {
-            switchSection('categories');
-            setTimeout(() => {
-                document.getElementById('categoryContainer').scrollIntoView({ behavior: 'smooth' });
-            }, 100);
-        });
-        grid.appendChild(card);
-    });
-}
-
-function renderCategories() {
-    const container = document.getElementById('categoryContainer');
-    container.innerHTML = '';
-
-    CATEGORIES.forEach(category => {
-        const events = manager.getEventsByCategory(category.id);
-        const categoryDiv = document.createElement('div');
-        categoryDiv.className = 'category-detail';
-
-        let eventsHTML = events.length > 0
-            ? events.map(e => `
-                <li onclick="viewEvent('${e.id}')">
-                    📅 ${e.name} - ${new Date(e.date).toLocaleDateString('es-ES')}
-                    <br><small>${e.location} | ${e.teams.length} equipos</small>
-                </li>
-            `).join('')
-            : '<li class="no-events">No hay eventos en esta categoría</li>';
-
-        categoryDiv.innerHTML = `
-            <h3>${category.icon} ${category.name}</h3>
-            <ul class="events-list">
-                ${eventsHTML}
-            </ul>
-        `;
-        container.appendChild(categoryDiv);
-    });
-}
-
-function viewEvent(eventId) {
-    const event = manager.getEvent(eventId);
-    if (!event) return;
-
-    const modal = document.getElementById('eventModal');
-    const modalBody = document.getElementById('modalBody');
-    const modalTitle = document.getElementById('modalTitle');
-
-    modalTitle.textContent = event.name;
-
-    let contentHTML = `
-        <div class="event-details">
-            <p><strong>Categoría:</strong> ${event.category}</p>
-            <p><strong>Fecha:</strong> ${new Date(event.date).toLocaleDateString('es-ES')}</p>
-            <p><strong>Ubicación:</strong> ${event.location}</p>
-            <p><strong>Formato:</strong> ${COMPETITION_FORMATS[event.format]}</p>
-            <p><strong>Equipos:</strong> ${event.teams.length}</p>
-            <p><strong>Partidos:</strong> ${event.matches ? event.matches.length : 0}</p>
+  let htmlBuffer = '';
+  for (const category of CATEGORIES) {
+    const events = await manager.getEventsByCategory(category.id);
+    htmlBuffer += `
+      <div class="category-card" onclick="switchSection('categories')">
+        <h3>${category.icon} ${category.name}</h3>
+        <div class="stats">
+          <div class="stat"><div class="stat-value">${events.length}</div><div class="stat-label">Torneos</div></div>
+          <div class="stat"><div class="stat-value">${events.reduce((sum, e) => sum + (e.teams ? e.teams.length : 0), 0)}</div><div class="stat-label">Equipos</div></div>
+          <div class="stat"><div class="stat-value">${events.reduce((sum, e) => sum + (e.matches ? e.matches.length : 0), 0)}</div><div class="stat-label">Partidos</div></div>
+        </div>
+      </div>
     `;
-
-    if (event.description) {
-        contentHTML += `<p><strong>Descripción:</strong> ${event.description}</p>`;
-    }
-
-    contentHTML += `
-            <h4>Equipos Registrados:</h4>
-            <ul>
-    `;
-
-    if (event.teams && event.teams.length > 0) {
-        event.teams.forEach(team => {
-            contentHTML += `<li>${team.name}</li>`;
-        });
-    } else {
-        contentHTML += '<li class="no-events">Sin equipos registrados aún</li>';
-    }
-
-    contentHTML += `</ul>`;
-    contentHTML += `<button class="btn-secondary" onclick="editEvent('${eventId}')">Editar Evento</button>`;
-    contentHTML += `<button class="btn-danger" onclick="deleteEvent('${eventId}')">Eliminar</button>`;
-    contentHTML += `</div>`;
-
-    modalBody.innerHTML = contentHTML;
-    modal.classList.add('show');
+  }
+  grid.innerHTML = htmlBuffer;
 }
 
-function handleEventFormSubmit(e) {
-    e.preventDefault();
+async function renderCategories() {
+  const container = document.getElementById('categoryContainer');
+  if (!container) return;
+  container.innerHTML = 'Sincronizando torneos...';
 
-    const formData = {
-        category: document.getElementById('eventCategory').value,
-        name: document.getElementById('eventName').value,
-        date: document.getElementById('eventDate').value,
-        location: document.getElementById('eventLocation').value,
-        teamsCount: parseInt(document.getElementById('eventTeams').value),
-        format: document.getElementById('competitionFormat').value,
-        description: document.getElementById('eventDescription').value
-    };
+  let totalHTML = '';
+  for (const category of CATEGORIES) {
+    const events = await manager.getEventsByCategory(category.id);
+    
+    let eventsHTML = events.length > 0
+      ? events.map(e => `
+          <li onclick="viewEvent('${e.id}')">
+            📅 ${e.name} - ${e.date ? new Date(e.date).toLocaleDateString('es-ES') : 'Sin fecha'}
+            <br><small>📍 ${e.location || 'Por definir'} | Límite: ${e.teamsCount || 0} escuadras</small>
+          </li>
+        `).join('')
+      : '<li class="no-events">No hay torneos activos aquí</li>';
 
-    const eventId = manager.createEvent(formData);
+    totalHTML += `
+      <div class="category-detail">
+        <h3>${category.icon} ${category.name}</h3>
+        <ul class="events-list">${eventsHTML}</ul>
+      </div>
+    `;
+  }
+  container.innerHTML = totalHTML;
+}
 
-    // Generar equipos dummy (para demostración)
-    for (let i = 1; i <= formData.teamsCount; i++) {
-        manager.addTeamToEvent(eventId, `Equipo ${i}`);
-    }
+// --- Visualización del Modal de Detalles ---
+async function viewEvent(eventId) {
+  const event = await manager.getEvent(eventId);
+  if (!event) return;
 
-    // Generar schedule basado en formato
-    if (formData.format === 'todos-contra-todos') {
-        const schedule = manager.generateRoundRobinSchedule(eventId);
-        manager.updateEvent(eventId, { matches: schedule });
-    } else if (formData.format === 'eliminacion') {
-        const bracket = manager.generateEliminationBracket(eventId);
-        manager.updateEvent(eventId, { bracket: bracket });
-    }
+  const modal = document.getElementById('eventModal');
+  const modalBody = document.getElementById('modalBody');
+  const modalTitle = document.getElementById('modalTitle');
 
-    alert('✅ Evento creado exitosamente!');
+  if (!modal || !modalBody || !modalTitle) return;
+
+  modalTitle.textContent = event.name;
+  modalBody.innerHTML = `
+    <div class="event-details">
+      <p><strong>Categoría:</strong> ${event.category.toUpperCase()}</p>
+      <p><strong>Fecha de Arranque:</strong> ${event.date ? new Date(event.date).toLocaleDateString('es-ES') : 'Sin fecha'}</p>
+      <p><strong>Cancha Sede:</strong> ${event.location}</p>
+      <p><strong>Esquema de Juego:</strong> ${COMPETITION_FORMATS[event.format] || event.format}</p>
+      <p><strong>Cupo Máximo:</strong> ${event.teamsCount} Equipos</p>
+      ${event.description ? `<p><strong>Notas del Organizador:</strong> ${event.description}</p>` : ""}
+      <button class="btn-danger" onclick="deleteEvent('${eventId}')" style="margin-top: 20px; width: 100%;">Eliminar este Torneo</button>
+    </div>
+  `;
+  modal.classList.add('show');
+}
+
+// --- Procesamiento de Formularios ---
+async function handleEventFormSubmit(e) {
+  e.preventDefault();
+
+  if (!isAdmin) {
+    alert("⚠️ Permiso denegado: Inicia sesión en la pestaña Admin primero.");
+    return;
+  }
+
+  const eventData = {
+    category: document.getElementById('eventCategory').value,
+    name: document.getElementById('eventName').value,
+    date: document.getElementById('eventDate').value,
+    location: document.getElementById('eventLocation').value,
+    teamsCount: parseInt(document.getElementById('eventTeams').value) || 0,
+    format: document.getElementById('competitionFormat').value,
+    description: document.getElementById('eventDescription').value
+  };
+
+  try {
+    await manager.createEvent(eventData);
+    alert('✅ ¡Torneo publicado con éxito en la plataforma!');
     document.getElementById('eventForm').reset();
-    renderDashboard();
     switchSection('dashboard');
+  } catch (error) {
+    alert("Error de Firebase: " + error.message);
+  }
 }
 
-function editEvent(eventId) {
-    alert('Funcionalidad de edición próximamente...');
-}
+async function deleteEvent(eventId) {
+  if (!isAdmin) {
+    alert("⚠️ Operación inválida: Solo el administrador puede borrar torneos del sistema.");
+    return;
+  }
 
-function deleteEvent(eventId) {
-    if (confirm('¿Estás seguro de que quieres eliminar este evento?')) {
-        delete manager.events[eventId];
-        manager.saveEvents();
-        document.getElementById('eventModal').classList.remove('show');
-        renderDashboard();
-        alert('✅ Evento eliminado');
+  if (confirm('¿Confirmas que deseas eliminar permanentemente este torneo?')) {
+    try {
+      await manager.deleteEvent(eventId);
+      document.getElementById('eventModal').classList.remove('show');
+      renderCategories();
+      alert('✅ Registro borrado de la base de datos.');
+    } catch (error) {
+      alert("Error al eliminar el archivo: " + error.message);
     }
+  }
 }
 
-// Función para agregar equipos a un evento
-function addTeamToEvent(eventId, teamName) {
-    manager.addTeamToEvent(eventId, teamName);
-    alert('✅ Equipo agregado exitosamente!');
+// --- Autenticación ---
+async function handleLoginSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const pass = document.getElementById('loginPassword').value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    alert("🔐 Acceso concedido. Bienvenido Coach.");
+    document.getElementById('loginForm').reset();
+    switchSection('dashboard');
+  } catch (error) {
+    alert("Fallo en las credenciales: " + error.message);
+  }
 }
 
-// Función para agregar resultado de partido
-function addMatchResult(eventId, matchData) {
-    manager.addMatchResult(eventId, matchData);
-    alert('✅ Resultado registrado exitosamente!');
+async function handleLogout() {
+  try {
+    await signOut(auth);
+    alert("🔒 Sesión finalizada de manera segura.");
+  } catch (error) {
+    console.error("Fallo al desconectar:", error);
+  }
 }
 
-console.log('🏀 Tournament Manager Initialized');
-console.log('Available events:', manager.events);
+// Inyección al objeto window para mantener los clics dinámicos funcionales
+window.viewEvent = viewEvent;
+window.deleteEvent = deleteEvent;
+window.switchSection = switchSection;

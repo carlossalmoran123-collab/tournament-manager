@@ -3,96 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tournament Manager</title>
+    <title>Tournament Manager 🏀</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
     <div class="container">
-        <!-- Header -->
+        <!-- Encabezado de la Plataforma -->
         <header class="header">
             <h1>🏀 Tournament Manager</h1>
-            <p>Plataforma de Gestión de Eventos Deportivos</p>
+            <p>Plataforma de Gestión de Torneos y Categorías</p>
         </header>
 
-        <!-- Navegación -->
+        <!-- Barra de Navegación por Pestañas -->
         <nav class="nav-tabs">
-            <button class="nav-btn active" data-section="dashboard">Dashboard</button>
-            <button class="nav-btn" data-section="add-event">Agregar Evento</button>
-            <button class="nav-btn" data-section="categories">Categorías</button>
+            <button class="nav-btn active" data-section="dashboard">📊 Dashboard</button>
+            <button class="nav-btn" data-section="categories">🎒 Categorías</button>
+            <button class="nav-btn" data-section="create-event">➕ Crear Evento</button>
+            <button class="nav-btn" data-section="login">🔒 Admin</button>
         </nav>
 
-        <!-- Dashboard -->
-        <section id="dashboard" class="section active">
-            <h2>📊 Dashboard</h2>
-            <div id="categoriesGrid" class="categories-grid"></div>
-        </section>
+        <!-- SECCIÓN 1: DASHBOARD GENERAL -->
+        <div id="dashboard" class="section active">
+            <h2>Dashboard General</h2>
+            <div id="categoriesGrid">
+                <!-- Se renderiza dinámicamente con JavaScript -->
+            </div>
+        </div>
 
-        <!-- Formulario de Evento -->
-        <section id="add-event" class="section">
-            <h2>➕ Agregar Nuevo Evento</h2>
+        <!-- SECCIÓN 2: CONTROL DE CATEGORÍAS -->
+        <div id="categories" class="section">
+            <h2>Control de Categorías</h2>
+            <div id="categoryContainer">
+                <!-- Se renderiza dinámicamente con JavaScript -->
+            </div>
+        </div>
+
+        <!-- SECCIÓN 3: FORMULARIO PARA CREAR TORNEOS -->
+        <div id="create-event" class="section">
+            <h2>Crear Nuevo Torneo</h2>
             <form id="eventForm" class="event-form">
                 <div class="form-group">
-                    <label for="eventCategory">Categoría:</label>
+                    <label for="eventCategory">Categoría</label>
                     <select id="eventCategory" required>
-                        <option value="">-- Selecciona una categoría --</option>
-                        <option value="micro-infantil">Micro Infantil</option>
-                        <option value="pasarela">Pasarela</option>
-                        <option value="cadetes">Cadetes</option>
-                        <option value="juvenil">Juvenil</option>
-                        <option value="juvenil-superior">Juvenil Superior</option>
-                        <option value="sub21">Sub 21</option>
-                        <option value="sub23">Sub 23</option>
+                        <option value="micro-infantil">👶 Micro Infantil</option>
+                        <option value="pasarela">🧒 Pasarela</option>
+                        <option value="cadetes">👦 Cadetes</option>
+                        <option value="juvenil">👨 Juvenil</option>
+                        <option value="juvenil-superior">👨 Juvenil Superior</option>
+                        <option value="sub21">👨‍🎓 Sub 21</option>
+                        <option value="sub23">👨‍🎓 Sub 23</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="eventName">Nombre del Evento:</label>
-                    <input id="eventName" type="text" placeholder="Ej: Torneo Regional 2026" required>
+                    <label for="eventName">Nombre del Torneo</label>
+                    <input type="text" id="eventName" placeholder="Ej. Copa Navidad 2026" required>
                 </div>
                 <div class="form-group">
-                    <label for="eventDate">Fecha:</label>
-                    <input id="eventDate" type="date" required>
+                    <label for="eventDate">Fecha de Inicio</label>
+                    <input type="date" id="eventDate" required>
                 </div>
                 <div class="form-group">
-                    <label for="eventLocation">Ubicación:</label>
-                    <input id="eventLocation" type="text" placeholder="Ej: Polideportivo Municipal" required>
+                    <label for="eventLocation">Ubicación / Cancha</label>
+                    <input type="text" id="eventLocation" placeholder="Ej. Cancha Municipal Huitzo" required>
                 </div>
                 <div class="form-group">
-                    <label for="eventTeams">Cantidad de Equipos:</label>
-                    <input id="eventTeams" type="number" min="2" placeholder="Ej: 8" required>
+                    <label for="eventTeams">Límite de Equipos</label>
+                    <input type="number" id="eventTeams" placeholder="Ej. 12" min="2" required>
                 </div>
                 <div class="form-group">
-                    <label for="competitionFormat">Formato:</label>
+                    <label for="competitionFormat">Formato de Competencia</label>
                     <select id="competitionFormat" required>
-                        <option value="todos-contra-todos">Todos Contra Todos</option>
+                        <option value="todos-contra-todos">Todos Contra Todos (Round Robin)</option>
                         <option value="grupos">Por Grupos</option>
-                        <option value="eliminacion">Eliminación Directa</option>
+                        <option value="eliminacion">Eliminación Directa (Bracket)</option>
                         <option value="mixto">Mixto (Grupos + Eliminación)</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="eventDescription">Descripción (opcional):</label>
-                    <textarea id="eventDescription" placeholder="Detalles adicionales..."></textarea>
+                    <label for="eventDescription">Descripción / Notas Adicionales</label>
+                    <textarea id="eventDescription" placeholder="Reglamento breve, costos de inscripción, etc."></textarea>
                 </div>
-                <button type="submit" class="btn-primary">✅ Crear Evento</button>
+                <button type="submit" class="btn-primary">Guardar Torneo en Firebase</button>
             </form>
-        </section>
+        </div>
 
-        <!-- Categorías -->
-        <section id="categories" class="section">
-            <h2>📂 Categorías</h2>
-            <div id="categoryContainer" class="category-container"></div>
-        </section>
-    </div>
-
-    <!-- Modal de Evento -->
-    <div id="eventModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modalTitle"></h2>
-            <div id="modalBody"></div>
+        <!-- SECCIÓN 4: LOGIN DEL ADMINISTRADOR -->
+        <div id="login" class="section">
+            <h2>Acceso Administrador</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="loginEmail">Correo Electrónico</label>
+                    <input type="email" id="loginEmail" placeholder="admin@correo.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Contraseña</label>
+                    <input type="password" id="loginPassword" placeholder="******" required>
+                </div>
+                <button type="submit" class="btn-primary">Iniciar Sesión</button>
+                <button type="button" id="logoutBtn" class="btn-danger" style="margin-top: 15px; width: 100%;">Cerrar Sesión Activa</button>
+            </form>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- MODAL GLOBAL PARA DETALLES DE EVENTO -->
+    <div id="eventModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">Nombre del Evento</h2>
+            <div id="modalBody">
+                <!-- Se llena dinámicamente mediante JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de lógica enlazado correctamente -->
+    <script type="module" src="script.js"></script>
 </body>
 </html>
