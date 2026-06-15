@@ -3,45 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tournament Manager 🏀</title>
+    <title>Tournament Manager Pro 🏀</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-    <div class="container">
-        <!-- Encabezado de la Plataforma -->
+    <div id="competition-selector-screen" class="full-screen-selector">
+        <div class="selector-box">
+            <h2>🏀 Selecciona una Competición</h2>
+            <p>Elige el torneo activo para ver estadísticas, roles y resultados</p>
+            <div id="competitionsList" class="competitions-grid">
+                </div>
+            <button id="btn-show-create-comp" class="btn-primary admin-only-block" style="margin-top: 20px;">+ Crear Nueva Competición</button>
+        </div>
+    </div>
+
+    <div id="compModal" class="modal">
+        <div class="modal-content">
+            <span class="close-comp close">&times;</span>
+            <h2>Crear Nueva Competición</h2>
+            <form id="compForm">
+                <div class="form-group">
+                    <label for="compName">Nombre de la Competición / Liga</label>
+                    <input type="text" id="compName" placeholder="Ej. Liga Municipal Huitzo 2026" required>
+                </div>
+                <div class="form-group">
+                    <label for="compSeason">Temporada / Año</label>
+                    <input type="text" id="compSeason" placeholder="Ej. Temporada Apertura" required>
+                </div>
+                <button type="submit" class="btn-primary">Guardar en Firebase</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="main-app-content" class="container" style="display: none;">
+        
         <header class="header">
-            <h1>🏀 Tournament Manager</h1>
-            <p>Plataforma de Gestión de Torneos y Categorías</p>
+            <button id="btn-back-to-selector" class="btn-back">⬅️ Cambiar de Torneo</button>
+            <h1 id="activeCompTitle">🏀 Nombre de la Competición</h1>
+            <p id="activeCompSub">Gestión de Torneos, Categorías y Resultados</p>
         </header>
 
-        <!-- Barra de Navegación por Pestañas -->
         <nav class="nav-tabs">
             <button class="nav-btn active" data-section="dashboard">📊 Dashboard</button>
             <button class="nav-btn" data-section="categories">🎒 Categorías</button>
-            <button class="nav-btn" data-section="create-event">➕ Crear Evento</button>
+            <button class="nav-btn" data-section="roles">📅 Roles y Marcadores</button>
+            <button class="nav-btn admin-only-inline" data-section="create-event">➕ Crear Torneo</button>
             <button class="nav-btn" data-section="login">🔒 Admin</button>
         </nav>
 
-        <!-- SECCIÓN 1: DASHBOARD GENERAL -->
         <div id="dashboard" class="section active">
             <h2>Dashboard General</h2>
-            <div id="categoriesGrid">
-                <!-- Se renderiza dinámicamente con JavaScript -->
-            </div>
+            <div id="categoriesGrid"></div>
         </div>
 
-        <!-- SECCIÓN 2: CONTROL DE CATEGORÍAS -->
         <div id="categories" class="section">
             <h2>Control de Categorías</h2>
-            <div id="categoryContainer">
-                <!-- Se renderiza dinámicamente con JavaScript -->
-            </div>
+            <div id="categoryContainer"></div>
         </div>
 
-        <!-- SECCIÓN 3: FORMULARIO PARA CREAR TORNEOS -->
+        <div id="roles" class="section">
+            <h2>Roles de Juego y Resultados</h2>
+            
+            <form id="matchForm" class="event-form admin-only-block" style="margin-bottom: 30px;">
+                <h3>⚽ Agregar Nuevo Encuentro</h3>
+                <div class="form-group">
+                    <label for="matchCategory">Categoría</label>
+                    <select id="matchCategory" required>
+                        <option value="micro-infantil">👶 Micro Infantil</option>
+                        <option value="pasarela">🧒 Pasarela</option>
+                        <option value="cadetes">👦 Cadetes</option>
+                        <option value="juvenil">👨 Juvenil</option>
+                        <option value="juvenil-superior">👨 Juvenil Superior</option>
+                        <option value="sub21">👨‍🎓 Sub 21</option>
+                        <option value="sub23">👨‍🎓 Sub 23</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="teamLocal">Equipo Local</label>
+                    <input type="text" id="teamLocal" placeholder="Ej. Linces Oaxaca" required>
+                </div>
+                <div class="form-group">
+                    <label for="teamVisitor">Equipo Visitante</label>
+                    <input type="text" id="teamVisitor" placeholder="Ej. Gavilanes" required>
+                </div>
+                <div class="form-group">
+                    <label for="matchDateTime">Fecha y Hora del Encuentro</label>
+                    <input type="datetime-local" id="matchDateTime" required>
+                </div>
+                <div class="form-group">
+                    <label for="matchCourt">Cancha / Sede</label>
+                    <input type="text" id="matchCourt" placeholder="Ej. Cancha Municipal Huitzo" required>
+                </div>
+                <button type="submit" class="btn-primary">Publicar Partido</button>
+            </form>
+
+            <div id="matchesListContainer">
+                </div>
+        </div>
+
         <div id="create-event" class="section">
-            <h2>Crear Nuevo Torneo</h2>
+            <h2>Crear Nuevo Torneo de Categoría</h2>
             <form id="eventForm" class="event-form">
                 <div class="form-group">
                     <label for="eventCategory">Categoría</label>
@@ -65,7 +127,7 @@
                 </div>
                 <div class="form-group">
                     <label for="eventLocation">Ubicación / Cancha</label>
-                    <input type="text" id="eventLocation" placeholder="Ej. Cancha Municipal Huitzo" required>
+                    <input type="text" id="eventLocation" placeholder="Ej. Cancha Principal" required>
                 </div>
                 <div class="form-group">
                     <label for="eventTeams">Límite de Equipos</label>
@@ -77,18 +139,16 @@
                         <option value="todos-contra-todos">Todos Contra Todos (Round Robin)</option>
                         <option value="grupos">Por Grupos</option>
                         <option value="eliminacion">Eliminación Directa (Bracket)</option>
-                        <option value="mixto">Mixto (Grupos + Eliminación)</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="eventDescription">Descripción / Notas Adicionales</label>
-                    <textarea id="eventDescription" placeholder="Reglamento breve, costos de inscripción, etc."></textarea>
+                    <label for="eventDescription">Descripción</label>
+                    <textarea id="eventDescription"></textarea>
                 </div>
                 <button type="submit" class="btn-primary">Guardar Torneo en Firebase</button>
             </form>
         </div>
 
-        <!-- SECCIÓN 4: LOGIN DEL ADMINISTRADOR -->
         <div id="login" class="section">
             <h2>Acceso Administrador</h2>
             <form id="loginForm">
@@ -106,18 +166,36 @@
         </div>
     </div>
 
-    <!-- MODAL GLOBAL PARA DETALLES DE EVENTO -->
     <div id="eventModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
             <h2 id="modalTitle">Nombre del Evento</h2>
-            <div id="modalBody">
-                <!-- Se llena dinámicamente mediante JavaScript -->
-            </div>
+            <div id="modalBody"></div>
         </div>
     </div>
 
-    <!-- Script de lógica enlazado correctamente -->
+    <div id="scoreModal" class="modal">
+        <div class="modal-content">
+            <span class="close-score close">&times;</span>
+            <h2>Actualizar Marcador Final</h2>
+            <form id="scoreForm">
+                <input type="hidden" id="scoreMatchId">
+                <div style="display: flex; gap: 20px; justify-content: space-around; margin: 20px 0;">
+                    <div style="text-align: center;">
+                        <label id="lblLocal" style="font-weight: bold; display: block; margin-bottom: 10px;"></label>
+                        <input type="number" id="scoreLocal" min="0" style="width: 80px; font-size: 1.5em; text-align: center; padding: 5px;" required>
+                    </div>
+                    <div style="font-size: 2em; align-self: center;">VS</div>
+                    <div style="text-align: center;">
+                        <label id="lblVisitor" style="font-weight: bold; display: block; margin-bottom: 10px;"></label>
+                        <input type="number" id="scoreVisitor" min="0" style="width: 80px; font-size: 1.5em; text-align: center; padding: 5px;" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary">Guardar Resultado Permanente</button>
+            </form>
+        </div>
+    </div>
+
     <script type="module" src="script.js"></script>
 </body>
 </html>
