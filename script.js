@@ -40,8 +40,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
   
-  // Lógica del nuevo botón de acceso directo si la BD está vacía
-  document.getElementById('btnDirectAdminAccess')?.addEventListener('click', () => {
+  // CORRECCIÓN: Fuerza la visibilidad del contenedor de la app al hacer clic
+  document.getElementById('btnGoToAdminPrep')?.addEventListener('click', () => {
     switchSection('admin', true);
   });
   
@@ -80,15 +80,6 @@ function initGlobalTournamentsObserver() {
   const tournamentsRef = ref(db, 'tournaments');
   onValue(tournamentsRef, (snapshot) => {
     globalTournaments = snapshot.val() || {};
-    
-    // Si no hay torneos creados, activamos el bloque de ayuda con el botón directo
-    const helpBlock = document.getElementById('setup-help-block');
-    if (Object.keys(globalTournaments).length === 0) {
-      if (helpBlock) helpBlock.style.display = 'block';
-    } else {
-      if (helpBlock) helpBlock.style.display = 'none';
-    }
-    
     renderCompetitionsSelector();
   });
 }
@@ -122,7 +113,7 @@ function renderCompetitionsSelector() {
 
   const keys = Object.keys(globalTournaments);
   if (keys.length === 0) {
-    select.innerHTML = '<option value="">No hay eventos maestros activos. Ve a Admin abajo.</option>';
+    select.innerHTML = '<option value="">No hay eventos maestros activos...</option>';
     return;
   }
 
@@ -150,6 +141,7 @@ function loadSelectedTournamentContext() {
   switchSection('dashboard');
 }
 
+// CORRECCIÓN CRÍTICA: Ahora maneja explícitamente el bypass visual desde el selector
 export function switchSection(sectionId, fromGlobalSelector = false) {
   if (fromGlobalSelector) {
     document.getElementById('competition-selector-screen').style.display = 'none';
