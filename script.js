@@ -1,20 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { 
-  getDatabase, 
-  ref, 
-  set, 
-  push, 
-  onValue, 
-  remove 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// Tu configuración real de Firebase en la nube
 const firebaseConfig = {
   apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw",
   authDomain: "torneos-basquetbol.firebaseapp.com",
@@ -24,23 +11,19 @@ const firebaseConfig = {
   appId: "1:758350808798:web:b1d8305c48b2d6a59b646c"
 };
 
-// Inicialización de Servicios
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// Estado de la Aplicación Global
 let currentTournamentId = null;
 let currentTournamentData = null;
 let isAdmin = false;
 
-// Listados de Memoria Caché para Renderizado y Formularios
 let globalTournaments = {};
 let globalTeams = {};
 let globalVenues = {};
 let globalMatches = {};
 
-// Mapeo Amigable de Categorías Deportivas Infantiles/Juveniles
 const categoriesConfig = {
   "micro": { label: "👶 Micro", desc: "Años 2017 - 2018 y menores" },
   "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
@@ -52,38 +35,24 @@ const categoriesConfig = {
   "sub23": { label: "👨‍🎓 Sub 23", desc: "Categoría Universitaria Avanzada" }
 };
 
-/* ==========================================
-   DOM LOAD & LISTENERS CENTRALES
-   ========================================== */
 document.addEventListener("DOMContentLoaded", () => {
-  // Conexiones de Autenticación y Cierre
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
-
-  // Botón de acceso a la App desde el selector de competencias
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
   
-  // Botón de retorno al Selector Global
   document.getElementById('btnBackToSelector')?.addEventListener('click', () => {
     document.getElementById('main-app-content').style.display = 'none';
     document.getElementById('competition-selector-screen').style.display = 'flex';
   });
 
-  // Escuchadores para Formularios de Consola Administrativa
   document.getElementById('teamForm')?.addEventListener('submit', handleTeamSubmit);
   document.getElementById('venueForm')?.addEventListener('submit', handleVenueSubmit);
   document.getElementById('matchForm')?.addEventListener('submit', handleMatchSubmit);
   document.getElementById('eventForm')?.addEventListener('submit', handleEventSubmit);
 
-  // Carga Inicial Estática de Lista de Torneos en Firebase
   initGlobalTournamentsObserver();
 });
 
-/* ==========================================
-   OBSERVADORES CENTRALES (FIREBASE Y AUTH)
-   ========================================== */
-
-// Observador de Estados de Autenticación (Mesa de Control)
 onAuthStateChanged(auth, (user) => {
   const loginBox = document.getElementById('admin-login-box');
   const adminPanels = document.getElementById('admin-dashboard-panels');
@@ -102,7 +71,6 @@ onAuthStateChanged(auth, (user) => {
   renderCompetitionsSelector(); 
 });
 
-// Monitorea todos los torneos disponibles en la raíz de la base de datos
 function initGlobalTournamentsObserver() {
   const tournamentsRef = ref(db, 'tournaments');
   onValue(tournamentsRef, (snapshot) => {
@@ -111,7 +79,6 @@ function initGlobalTournamentsObserver() {
   });
 }
 
-// Escucha en tiempo real los cambios del torneo que se encuentra activo en la App
 function attachTournamentRealtimeListeners(tournamentId) {
   const tRef = ref(db, `tournaments/${tournamentId}`);
   onValue(tRef, (snapshot) => {
@@ -123,22 +90,16 @@ function attachTournamentRealtimeListeners(tournamentId) {
     globalVenues = data.venues || {};
     globalMatches = data.matches || {};
 
-    // Actualizar Encabezado Dinámico
     document.getElementById('appTournamentTitle').innerText = data.name || "Torneo Sin Nombre";
     document.getElementById('appTournamentVenue').innerText = data.location || "Sede General";
     document.getElementById('appTournamentFormat').innerText = data.format || "Formato Regular";
 
-    // Actualizar Selectores de Formularios y Vistas Públicas
     populateAdminDropdowns();
     renderDashboard();
     renderCategories();
     renderMatchesByVenue();
   });
 }
-
-/* ==========================================
-   MANEJADORES DE FLUJO E INTERFAZ (UI)
-   ========================================== */
 
 function renderCompetitionsSelector() {
   const select = document.getElementById('globalCompetitionSelect');
@@ -147,7 +108,7 @@ function renderCompetitionsSelector() {
 
   const keys = Object.keys(globalTournaments);
   if (keys.length === 0) {
-    select.innerHTML = '<option value="">No hay eventos maestros activos creados...</option>';
+    select.innerHTML = '<option value="">No hay eventos maestros activos...</option>';
     return;
   }
 
@@ -170,7 +131,6 @@ function loadSelectedTournamentContext() {
   currentTournamentId = id;
   attachTournamentRealtimeListeners(id);
 
-  // Animación de cambio de pantalla principal
   document.getElementById('competition-selector-screen').style.display = 'none';
   document.getElementById('main-app-content').style.display = 'block';
   switchSection('dashboard');
@@ -189,11 +149,7 @@ export function switchSection(sectionId, fromGlobalSelector = false) {
   document.getElementById(sectionId)?.classList.add('active');
   document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
 }
-window.switchSection = switchSection; // Exponer a la ventana global para onclick html
-
-/* ==========================================
-   LÓGICA DE NEGOCIO: PROCESAMIENTO Y RENDERS
-   ========================================== */
+window.switchSection = switchSection;
 
 function renderDashboard() {
   const teamsArr = Object.values(globalTeams);
@@ -212,7 +168,8 @@ function renderDashboard() {
   }
 
   teamsArr.forEach(team => {
-    const catLabel = categoriesConfig[team.categoryRegistered]?.label || "Sin Categoría";
+    const catInfo = categoriesConfig[team.categoryRegistered];
+    const catLabel = catInfo ? catInfo.label : "Sin Categoría";
     const pill = document.createElement('div');
     pill.className = 'team-pill';
     const logoUrl = team.logoUrl || 'https://placehold.co/40x40/007bff/ffffff?text=🏀';
@@ -236,7 +193,6 @@ function renderCategories() {
 
   Object.keys(categoriesConfig).forEach(catKey => {
     const catInfo = categoriesConfig[catKey];
-    // Filtra los equipos que pertenecen estrictamente a esta categoría dentro del evento único
     const filteredTeams = teamsArr.filter(t => t.categoryRegistered === catKey);
 
     const card = document.createElement('div');
@@ -299,7 +255,6 @@ function renderMatchesByVenue() {
       return;
     }
 
-    // Clasificar encuentros por fechas (Orden cronológico)
     const matchesByDate = {};
     venueMatches.forEach(([mId, m]) => {
       if (!matchesByDate[m.date]) matchesByDate[m.date] = [];
@@ -312,7 +267,6 @@ function renderMatchesByVenue() {
       const dateBlock = document.createElement('div');
       dateBlock.className = 'date-role-block';
 
-      // Formatear Fecha legible
       const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' };
       const formattedDate = new Date(date).toLocaleDateString('es-MX', options);
       
@@ -321,11 +275,11 @@ function renderMatchesByVenue() {
       const matchesGrid = document.createElement('div');
       matchesGrid.className = 'matches-table-grid';
 
-      // Ordenar horas dentro del mismo día
       matchesByDate[date].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
       matchesByDate[date].forEach(match => {
-        const catLabel = categoriesConfig[match.category]?.label || "Libre";
+        const catInfo = categoriesConfig[match.category];
+        const catLabel = catInfo ? catInfo.label : "Libre";
         const matchCard = document.createElement('div');
         matchCard.className = 'match-schedule-card';
         
@@ -354,7 +308,7 @@ function populateAdminDropdowns() {
   const localSel = document.getElementById('selectLocal');
   const visitorSel = document.getElementById('selectVisitor');
   const venueSel = document.getElementById('selectMatchVenue');
-  const teamCatSel = document.getElementById('regTeamCategory'); // Select dinámico para el equipo
+  const teamCatSel = document.getElementById('regTeamCategory');
 
   if (!localSel || !visitorSel || !venueSel) return;
 
@@ -362,20 +316,17 @@ function populateAdminDropdowns() {
   visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
   venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
 
-  // Rellenar selectores de juegos con los equipos registrados
   Object.entries(globalTeams).forEach(([id, t]) => {
-    const catBadge = categoriesConfig[t.categoryRegistered]?.label || "S/C";
-    const optLocal = `<option value="${id}">${t.name} (${catBadge})</option>`;
-    const optVisitor = `<option value="${id}">${t.name} (${catBadge})</option>`;
-    localSel.innerHTML += optLocal;
-    visitorSel.innerHTML += optVisitor;
+    const catInfo = categoriesConfig[t.categoryRegistered];
+    const catBadge = catInfo ? catInfo.label : "S/C";
+    localSel.innerHTML += `<option value="${id}">${t.name} (${catBadge})</option>`;
+    visitorSel.innerHTML += `<option value="${id}">${t.name} (${catBadge})</option>`;
   });
 
   Object.entries(globalVenues).forEach(([id, v]) => {
     venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
   });
 
-  // Rellenar selector de categorías en el formulario de equipos si existe en el HTML
   if (teamCatSel && teamCatSel.children.length <= 1) {
     teamCatSel.innerHTML = '<option value="">-- Elige Categoría --</option>';
     Object.entries(categoriesConfig).forEach(([key, value]) => {
@@ -383,10 +334,6 @@ function populateAdminDropdowns() {
     });
   }
 }
-
-/* ==========================================
-   PROCESADORES DE ACCIONES Y ENVIOS DE FORMULARIOS
-   ========================================== */
 
 async function handleLoginSubmit(e) {
   e.preventDefault();
@@ -399,7 +346,7 @@ async function handleLoginSubmit(e) {
     document.getElementById('loginForm').reset();
     switchSection('admin');
   } catch (error) { 
-    alert("Error de acceso: Credenciales incorrectas. " + error.message); 
+    alert("Error de acceso: " + error.message); 
   }
 }
 
@@ -417,7 +364,6 @@ function handleTeamSubmit(e) {
 
   const name = document.getElementById('regTeamName').value.trim();
   const logoUrl = document.getElementById('regTeamLogo').value.trim();
-  // Captura la categoría específica del equipo dentro del evento único
   const categoryRegistered = document.getElementById('regTeamCategory')?.value || "micro"; 
 
   const teamsRef = ref(db, `tournaments/${currentTournamentId}/teams`);
@@ -425,7 +371,7 @@ function handleTeamSubmit(e) {
 
   set(newTeamRef, { name, logoUrl, categoryRegistered })
     .then(() => {
-      alert("🏆 Equipo guardado y asignado a su categoría.");
+      alert("🏆 Equipo guardado con éxito.");
       document.getElementById('teamForm').reset();
     }).catch(err => alert("Error: " + err.message));
 }
@@ -443,7 +389,7 @@ function handleVenueSubmit(e) {
 
   set(newVenueRef, { name, address, mapsUrl })
     .then(() => {
-      alert("📍 Sede añadida al mapa de la liga.");
+      alert("📍 Sede añadida.");
       document.getElementById('venueForm').reset();
     }).catch(err => alert("Error: " + err.message));
 }
@@ -461,7 +407,7 @@ function handleMatchSubmit(e) {
   const venueId = document.getElementById('selectMatchVenue').value;
 
   if (localId === visitorId) {
-    alert("⚠️ ¡Conflicto! Un equipo no puede jugar contra sí mismo.");
+    alert("⚠️ Un equipo no puede jugar contra sí mismo.");
     return;
   }
 
@@ -475,7 +421,7 @@ function handleMatchSubmit(e) {
     category, localId, localName, visitorId, visitorName,
     date, startTime, endTime, venueId
   }).then(() => {
-    alert("📅 Partido indexado en el Rol de Juegos.");
+    alert("📅 Partido indexado.");
     document.getElementById('matchForm').reset();
   }).catch(err => alert("Error: " + err.message));
 }
@@ -491,24 +437,22 @@ function handleEventSubmit(e) {
   const rootTournamentsRef = ref(db, 'tournaments');
   const newTournamentRef = push(rootTournamentsRef);
 
-  // Crea el evento limpio sin una categoría global amarrada
   set(newTournamentRef, {
     name, location, maxTeams, format, description,
     teams: {}, matches: {}, venues: {}
   }).then(() => {
-    alert("➕ ¡Nuevo Evento Único creado con éxito! Ya puedes registrar todas las categorías aquí.");
+    alert("➕ ¡Nuevo Evento Maestro creado!");
     document.getElementById('eventForm').reset();
-  }).catch(err => alert("Error al estructurar torneo: " + err.message));
+  }).catch(err => alert("Error: " + err.message));
 }
 
-// Función global para remover partidos del nodo de Firebase
 function deleteMatchEvent(matchId) {
   if (!currentTournamentId) return;
-  if (confirm("¿Estás seguro de que deseas eliminar permanentemente este partido del Rol regular?")) {
+  if (confirm("¿Deseas eliminar este partido?")) {
     const matchRef = ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`);
     remove(matchRef)
-      .then(() => alert("Partido eliminado correctamente."))
-      .catch(err => alert("Error al remover: " + err.message));
+      .then(() => alert("Partido eliminado."))
+      .catch(err => alert("Error: " + err.message));
   }
 }
-window.deleteMatchEvent = deleteMatchEvent; // Exponer a la ventana global
+window.deleteMatchEvent = deleteMatchEvent;
