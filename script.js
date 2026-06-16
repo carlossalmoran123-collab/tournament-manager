@@ -14,15 +14,14 @@ import {
   remove 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// Tu configuración de Firebase Firebase (Reemplaza con tus llaves reales)
+// Tu configuración real de Firebase en la nube
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://TU_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROJECT_ID.appspot.com",
-  messagingSenderId: "TU_MESSAGING_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw",
+  authDomain: "torneos-basquetbol.firebaseapp.com",
+  projectId: "torneos-basquetbol",
+  storageBucket: "torneos-basquetbol.appspot.com",
+  messagingSenderId: "758350808798",
+  appId: "1:758350808798:web:b1d8305c48b2d6a59b646c"
 };
 
 // Inicialización de Servicios
