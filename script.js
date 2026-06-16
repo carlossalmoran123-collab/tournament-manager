@@ -25,8 +25,9 @@ let globalTeams = {};
 let globalVenues = {};
 let globalMatches = {};
 
-// Categorías Oficiales
+// Categorías Oficiales - ¡Chupon añadida hasta arriba con éxito!
 const categoriesConfig = {
+  "chupon": { label: "🍼 Chupon", desc: "Iniciación y psicomotricidad básica (4-6 años)" },
   "micro": { label: "👶 Micro", desc: "Años 2017 - 2018 y menores" },
   "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
   "pasarela": { label: "🏀 Pasarela", desc: "Años 2013 - 2014" },
@@ -367,7 +368,7 @@ function deleteVenueFromApp(venueId, venueName) {
 }
 window.deleteVenueFromApp = deleteVenueFromApp;
 
-// Llena los desplegables estáticos (categorías del registro y canchas del rol)
+// Llena los desplegables estáticos
 function populateStaticAdminDropdowns() {
   const venueSel = document.getElementById('selectMatchVenue');
   const teamCatSel = document.getElementById('regTeamCategory');
@@ -387,7 +388,7 @@ function populateStaticAdminDropdowns() {
   }
 }
 
-// 🔥 FILTRO ESTRICTO: Actualiza los desplegables LOCAL y VISITANTE mostrando ÚNICAMENTE los equipos de la categoría elegida
+// FILTRO ESTRICTO REALIZADO POR CATEGORÍA SELECCIONADA
 function updateFilteredTeamsDropdowns() {
   const matchCategorySelect = document.getElementById('matchCategory');
   const localSel = document.getElementById('selectLocal');
@@ -395,12 +396,11 @@ function updateFilteredTeamsDropdowns() {
 
   if (!matchCategorySelect || !localSel || !visitorSel) return;
 
-  const selectedCategory = matchCategorySelect.value; // Categoría del partido a agendar
+  const selectedCategory = matchCategorySelect.value; 
 
   localSel.innerHTML = '<option value="">-- Selecciona --</option>';
   visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
 
-  // Iteramos sobre todos los equipos pero solo renderizamos los que coincidan exactamente con la categoría elegida
   Object.entries(globalTeams).forEach(([id, t]) => {
     if (!t || !t.name) return;
     
@@ -454,7 +454,7 @@ function handleTeamSubmit(e) {
     .then(() => {
       alert(`🏆 Equipo "${name}" registrado con éxito en la categoría ${categoriesConfig[categoryRegistered].label}.`);
       document.getElementById('teamForm').reset();
-      populateStaticAdminDropdowns(); // Mantiene sincronizado el selector de registro
+      populateStaticAdminDropdowns(); 
     }).catch(err => alert("Error: " + err.message));
 }
 
@@ -473,6 +473,7 @@ function handleVenueSubmit(e) {
     .then(() => {
       alert("📍 Sede añadida.");
       document.getElementById('venueForm').reset();
+      populateStaticAdminDropdowns();
     }).catch(err => alert("Error: " + err.message));
 }
 
@@ -480,7 +481,10 @@ function handleMatchSubmit(e) {
   e.preventDefault();
   if (!currentTournamentId) return alert("⚠️ No has cargado ningún torneo.");
 
-  const category = document.getElementById('matchCategory').value;
+  // Guardamos la categoría actual antes del reset para que no regrese a "chupon" automáticamente si el usuario estaba programando otra
+  const matchCategorySelect = document.getElementById('matchCategory');
+  const activeCategory = matchCategorySelect.value;
+
   const localId = document.getElementById('selectLocal').value;
   const visitorId = document.getElementById('selectVisitor').value;
   const date = document.getElementById('matchDate').value;
@@ -505,12 +509,15 @@ function handleMatchSubmit(e) {
   const newMatchRef = push(matchesRef);
 
   set(newMatchRef, {
-    category, localId, localName, visitorId, visitorName,
+    category: activeCategory, localId, localName, visitorId, visitorName,
     date, startTime, endTime, venueId
   }).then(() => {
     alert("📅 Partido indexado al rol.");
     document.getElementById('matchForm').reset();
-    updateFilteredTeamsDropdowns(); // Limpia y actualiza desplegables según la categoría del formulario
+    
+    // Restauramos la categoría seleccionada y refrescamos los selects filtrados
+    matchCategorySelect.value = activeCategory;
+    updateFilteredTeamsDropdowns(); 
   }).catch(err => alert("Error: " + err.message));
 }
 
