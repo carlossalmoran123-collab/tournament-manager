@@ -20,13 +20,15 @@
     #competition-selector-screen {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       min-height: 100vh; background: linear-gradient(135deg, #111 0%, #222 100%); color: var(--white); padding: 20px;
+      position: relative;
     }
     .selector-container {
       background: rgba(255,255,255,0.05); padding: 40px; border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.3); max-width: 500px; width: 100%; text-align: center;
       border: 1px solid rgba(255,255,255,0.1);
+      position: relative;
     }
-    .selector-container h1 { margin-bottom: 20px; font-size: 2rem; color: var(--primary); }
+    .selector-container h1 { margin-bottom: 5px; font-size: 2rem; color: var(--primary); }
     .form-group { margin-bottom: 20px; text-align: left; }
     .form-group label { display: block; margin-bottom: 8px; color: #ccc; font-size: 0.9rem; }
     select, input, textarea {
@@ -46,6 +48,14 @@
     .btn-secondary:hover { background-color: #333; }
     .btn-danger { background-color: #dc3545; }
     .btn-danger:hover { background-color: #bd2130; }
+    
+    /* Botón Admin de Esquina/Acceso Rápido */
+    .btn-admin-corner {
+      background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2);
+      padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: bold;
+      transition: all 0.2s; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-admin-corner:hover { background: var(--primary); border-color: var(--primary); }
 
     /* Estructura de Aplicación Principal */
     #main-app-content { display: none; }
@@ -138,7 +148,10 @@
   <section id="competition-selector-screen">
     <div class="selector-container">
       <h1>🏀 Torneos Básquetbol</h1>
-      <p style="color: #aaa; margin-bottom: 25px; font-size:0.95rem;">Selecciona el Evento Maestro para cargar el Rol Regular</p>
+      <p style="color: #aaa; margin-bottom: 15px; font-size:0.95rem;">Selecciona el Evento Maestro para cargar el Rol Regular</p>
+      
+      <!-- BOTÓN PERMANENTE PARA ACCEDER COMO ADMIN -->
+      <button id="btnGoToAdminPrep" class="btn-admin-corner">⚙️ Panel Mesa de Control</button>
       
       <div class="form-group">
         <label for="globalCompetitionSelect">Competencia Activa:</label>
@@ -148,12 +161,6 @@
       </div>
       
       <button id="btnEnterApp" class="btn">Entrar al Torneo</button>
-      
-      <!-- Botón de pánico/configuración inicial visible solo si está vacío -->
-      <div id="setup-help-block" style="margin-top: 20px; display: none;">
-        <p style="font-size: 0.85rem; color: #ff6b00; margin-bottom: 10px;">¿Es tu primera vez o no tienes torneos guardados?</p>
-        <button id="btnDirectAdminAccess" class="btn btn-secondary" style="font-size: 0.9rem; padding: 10px;">🛠️ Ir Directo a Mesa de Control</button>
-      </div>
     </div>
   </section>
 
