@@ -8,7 +8,8 @@ const firebaseConfig = {
   projectId: "torneos-basquetbol",
   storageBucket: "torneos-basquetbol.appspot.com",
   messagingSenderId: "758350808798",
-  appId: "1:758350808798:web:b1d8305c48b2d6a59b646c"
+  appId: "1:758350808798:web:b1d8305c48b2d6a59b646c",
+  databaseURL: "https://torneos-basquetbol-default-rtdb.firebaseio.com" // 🔗 Conectado con tu captura image_eb8f20.png
 };
 
 const app = initializeApp(firebaseConfig);
@@ -146,7 +147,7 @@ function loadSelectedTournamentContext() {
   switchSection('dashboard');
 }
 
-export function switchSection(sectionId, fromGlobalSelector = false) {
+function switchSection(sectionId, fromGlobalSelector = false) {
   const navMenu = document.querySelector('nav');
   
   if (fromGlobalSelector) {
