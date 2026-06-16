@@ -9,7 +9,7 @@ const firebaseConfig = {
   storageBucket: "torneos-basquetbol.appspot.com",
   messagingSenderId: "758350808798",
   appId: "1:758350808798:web:b1d8305c48b2d6a59b646c",
-  databaseURL: "https://torneos-basquetbol-default-rtdb.firebaseio.com" // 🔗 Conectado con tu captura image_eb8f20.png
+  databaseURL: "https://torneos-basquetbol-default-rtdb.firebaseio.com" // 🔗 Conectado con tu base de datos
 };
 
 const app = initializeApp(firebaseConfig);
@@ -447,6 +447,8 @@ function populateAdminDropdowns() {
     if(!t || !t.name || t.categoryRegistered === 'espera' || !t.categoryRegistered) return;
     const catInfo = categoriesConfig[t.categoryRegistered];
     const catBadge = catInfo ? catInfo.label : "S/C";
+    
+    // Muestra la categoría al lado del club para identificarlos limpiamente al armar partidos
     localSel.innerHTML += `<option value="${id}">${t.name} (${catBadge})</option>`;
     visitorSel.innerHTML += `<option value="${id}">${t.name} (${catBadge})</option>`;
   });
@@ -497,6 +499,7 @@ function handleTeamSubmit(e) {
   const teamsRef = ref(db, `tournaments/${currentTournamentId}/teams`);
   const newTeamRef = push(teamsRef);
 
+  // Guarda múltiples instancias de un mismo club diferenciadas por su categoría
   set(newTeamRef, { name, logoUrl, categoryRegistered })
     .then(() => {
       alert(categoryRegistered === "espera" ? "📥 Guardado en la Lista de Espera temporal." : "🏆 Equipo guardado con éxito.");
@@ -517,7 +520,7 @@ function handleVenueSubmit(e) {
 
   set(newVenueRef, { name, address, mapsUrl })
     .then(() => {
-      alert("📍 Sede añadida.");
+      alert("📍 Sede añadió.");
       document.getElementById('venueForm').reset();
     }).catch(err => alert("Error: " + err.message));
 }
