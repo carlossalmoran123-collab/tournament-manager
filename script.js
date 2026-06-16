@@ -147,7 +147,7 @@ function renderCompetitionsSelector() {
 
   const keys = Object.keys(globalTournaments);
   if (keys.length === 0) {
-    select.innerHTML = '<option value="">No hay torneos activos creados...</option>';
+    select.innerHTML = '<option value="">No hay eventos maestros activos creados...</option>';
     return;
   }
 
@@ -155,7 +155,7 @@ function renderCompetitionsSelector() {
     const t = globalTournaments[key];
     const option = document.createElement('option');
     option.value = key;
-    option.innerText = `🏀 ${t.name} (${t.category ? t.category.toUpperCase() : 'Libre'})`;
+    option.innerText = `🏆 ${t.name} — 📍 Sede: ${t.location || 'Por definir'}`;
     select.appendChild(option);
   });
 }
@@ -164,7 +164,7 @@ function loadSelectedTournamentContext() {
   const select = document.getElementById('globalCompetitionSelect');
   const id = select?.value;
   if (!id || id === "") {
-    alert("Por favor selecciona un torneo válido antes de entrar.");
+    alert("Por favor selecciona un evento válido antes de entrar.");
     return;
   }
   currentTournamentId = id;
@@ -212,12 +212,16 @@ function renderDashboard() {
   }
 
   teamsArr.forEach(team => {
+    const catLabel = categoriesConfig[team.categoryRegistered]?.label || "Sin Categoría";
     const pill = document.createElement('div');
     pill.className = 'team-pill';
     const logoUrl = team.logoUrl || 'https://placehold.co/40x40/007bff/ffffff?text=🏀';
     pill.innerHTML = `
       <img src="${logoUrl}" alt="Logo" onerror="this.src='https://placehold.co/40x40/007bff/ffffff?text=🏀'">
-      <span>${team.name}</span>
+      <div>
+        <strong>${team.name}</strong><br>
+        <small style="color: #ff6b00;">${catLabel}</small>
+      </div>
     `;
     container.appendChild(pill);
   });
@@ -232,14 +236,15 @@ function renderCategories() {
 
   Object.keys(categoriesConfig).forEach(catKey => {
     const catInfo = categoriesConfig[catKey];
-    const filteredTeams = teamsArr.filter(t => t.categoryRegistered === catKey || !t.categoryRegistered);
+    // Filtra los equipos que pertenecen estrictamente a esta categoría dentro del evento único
+    const filteredTeams = teamsArr.filter(t => t.categoryRegistered === catKey);
 
     const card = document.createElement('div');
     card.className = 'category-card';
     
     let teamsListHtml = '<ul class="cat-teams-list">';
     if (filteredTeams.length === 0) {
-      teamsListHtml += '<li><span style="color:#aaa; font-style:italic;">Sin escuadras inscritas</span></li>';
+      teamsListHtml += '<li><span style="color:#aaa; font-style:italic;">Sin escuadras inscritas aún</span></li>';
     } else {
       filteredTeams.forEach(t => {
         teamsListHtml += `<li>🛡️ ${t.name}</li>`;
@@ -349,6 +354,7 @@ function populateAdminDropdowns() {
   const localSel = document.getElementById('selectLocal');
   const visitorSel = document.getElementById('selectVisitor');
   const venueSel = document.getElementById('selectMatchVenue');
+  const teamCatSel = document.getElementById('regTeamCategory'); // Select dinámico para el equipo
 
   if (!localSel || !visitorSel || !venueSel) return;
 
@@ -356,9 +362,11 @@ function populateAdminDropdowns() {
   visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
   venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
 
+  // Rellenar selectores de juegos con los equipos registrados
   Object.entries(globalTeams).forEach(([id, t]) => {
-    const optLocal = `<option value="${id}">${t.name}</option>`;
-    const optVisitor = `<option value="${id}">${t.name}</option>`;
+    const catBadge = categoriesConfig[t.categoryRegistered]?.label || "S/C";
+    const optLocal = `<option value="${id}">${t.name} (${catBadge})</option>`;
+    const optVisitor = `<option value="${id}">${t.name} (${catBadge})</option>`;
     localSel.innerHTML += optLocal;
     visitorSel.innerHTML += optVisitor;
   });
@@ -366,6 +374,14 @@ function populateAdminDropdowns() {
   Object.entries(globalVenues).forEach(([id, v]) => {
     venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
   });
+
+  // Rellenar selector de categorías en el formulario de equipos si existe en el HTML
+  if (teamCatSel && teamCatSel.children.length <= 1) {
+    teamCatSel.innerHTML = '<option value="">-- Elige Categoría --</option>';
+    Object.entries(categoriesConfig).forEach(([key, value]) => {
+      teamCatSel.innerHTML += `<option value="${key}">${value.label}</option>`;
+    });
+  }
 }
 
 /* ==========================================
@@ -401,13 +417,15 @@ function handleTeamSubmit(e) {
 
   const name = document.getElementById('regTeamName').value.trim();
   const logoUrl = document.getElementById('regTeamLogo').value.trim();
+  // Captura la categoría específica del equipo dentro del evento único
+  const categoryRegistered = document.getElementById('regTeamCategory')?.value || "micro"; 
 
   const teamsRef = ref(db, `tournaments/${currentTournamentId}/teams`);
   const newTeamRef = push(teamsRef);
 
-  set(newTeamRef, { name, logoUrl })
+  set(newTeamRef, { name, logoUrl, categoryRegistered })
     .then(() => {
-      alert("🏆 Equipo guardado con éxito.");
+      alert("🏆 Equipo guardado y asignado a su categoría.");
       document.getElementById('teamForm').reset();
     }).catch(err => alert("Error: " + err.message));
 }
@@ -464,7 +482,6 @@ function handleMatchSubmit(e) {
 
 function handleEventSubmit(e) {
   e.preventDefault();
-  const category = document.getElementById('eventCategory').value;
   const name = document.getElementById('eventName').value.trim();
   const location = document.getElementById('eventLocation').value.trim();
   const maxTeams = document.getElementById('eventTeams').value;
@@ -474,13 +491,14 @@ function handleEventSubmit(e) {
   const rootTournamentsRef = ref(db, 'tournaments');
   const newTournamentRef = push(rootTournamentsRef);
 
+  // Crea el evento limpio sin una categoría global amarrada
   set(newTournamentRef, {
-    category, name, location, maxTeams, format, description,
+    name, location, maxTeams, format, description,
     teams: {}, matches: {}, venues: {}
   }).then(() => {
-    alert("➕ ¡Nuevo torneo maestro creado globalmente! Ya puedes seleccionarlo.");
+    alert("➕ ¡Nuevo Evento Único creado con éxito! Ya puedes registrar todas las categorías aquí.");
     document.getElementById('eventForm').reset();
-  }).catch(err => alert("Error al asignar torneo: " + err.message));
+  }).catch(err => alert("Error al estructurar torneo: " + err.message));
 }
 
 // Función global para remover partidos del nodo de Firebase
