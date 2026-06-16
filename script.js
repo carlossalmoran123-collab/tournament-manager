@@ -40,6 +40,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
   
+  // Lógica del nuevo botón de acceso directo si la BD está vacía
+  document.getElementById('btnDirectAdminAccess')?.addEventListener('click', () => {
+    switchSection('admin', true);
+  });
+  
   document.getElementById('btnBackToSelector')?.addEventListener('click', () => {
     document.getElementById('main-app-content').style.display = 'none';
     document.getElementById('competition-selector-screen').style.display = 'flex';
@@ -75,6 +80,15 @@ function initGlobalTournamentsObserver() {
   const tournamentsRef = ref(db, 'tournaments');
   onValue(tournamentsRef, (snapshot) => {
     globalTournaments = snapshot.val() || {};
+    
+    // Si no hay torneos creados, activamos el bloque de ayuda con el botón directo
+    const helpBlock = document.getElementById('setup-help-block');
+    if (Object.keys(globalTournaments).length === 0) {
+      if (helpBlock) helpBlock.style.display = 'block';
+    } else {
+      if (helpBlock) helpBlock.style.display = 'none';
+    }
+    
     renderCompetitionsSelector();
   });
 }
@@ -108,7 +122,7 @@ function renderCompetitionsSelector() {
 
   const keys = Object.keys(globalTournaments);
   if (keys.length === 0) {
-    select.innerHTML = '<option value="">No hay eventos maestros activos...</option>';
+    select.innerHTML = '<option value="">No hay eventos maestros activos. Ve a Admin abajo.</option>';
     return;
   }
 
@@ -137,10 +151,10 @@ function loadSelectedTournamentContext() {
 }
 
 export function switchSection(sectionId, fromGlobalSelector = false) {
-  if (sectionId === 'login' && fromGlobalSelector) {
-    sectionId = 'admin'; 
+  if (fromGlobalSelector) {
     document.getElementById('competition-selector-screen').style.display = 'none';
     document.getElementById('main-app-content').style.display = 'block';
+    sectionId = 'admin';
   }
 
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
