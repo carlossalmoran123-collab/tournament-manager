@@ -42,8 +42,9 @@ let globalMatches = {};
 
 // Mapeo Amigable de Categorías Deportivas Infantiles/Juveniles
 const categoriesConfig = {
-  "micro-infantil": { label: "👶 Micro Infantil", desc: "Años 2017 - 2018 y menores" },
-  "pasarela": { label: "🧒 Pasarela", desc: "Años 2013 - 2014" },
+  "micro": { label: "👶 Micro", desc: "Años 2017 - 2018 y menores" },
+  "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
+  "pasarela": { label: "🏀 Pasarela", desc: "Años 2013 - 2014" },
   "cadetes": { label: "👦 Cadetes", desc: "Años 2011 - 2012" },
   "juvenil": { label: "👨 Juvenil", desc: "Años 2009 - 2010" },
   "juvenil-superior": { label: "👨 Juvenil Superior", desc: "Años 2007 - 2008" },
@@ -479,7 +480,7 @@ function handleEventSubmit(e) {
   }).then(() => {
     alert("➕ ¡Nuevo torneo maestro creado globalmente! Ya puedes seleccionarlo.");
     document.getElementById('eventForm').reset();
-  }).catch(err => alert("Error al estructurar torneo: " + err.message));
+  }).catch(err => alert("Error al asignar torneo: " + err.message));
 }
 
 // Función global para remover partidos del nodo de Firebase
