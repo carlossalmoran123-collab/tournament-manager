@@ -24,7 +24,6 @@ let globalTeams = {};
 let globalVenues = {};
 let globalMatches = {};
 
-// Configuración de categorías oficiales
 const categoriesConfig = {
   "micro": { label: "👶 Micro", desc: "Años 2017 - 2018 y menores" },
   "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
@@ -171,7 +170,6 @@ export function switchSection(sectionId, fromGlobalSelector = false) {
 window.switchSection = switchSection;
 
 function renderDashboard() {
-  // Excluir el placeholder si existe al contar
   const teamsArr = Object.values(globalTeams).filter(t => t.name);
   const matchesArr = Object.values(globalMatches).filter(m => m.date);
 
@@ -211,7 +209,7 @@ function renderCategories() {
 
   const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t.name);
 
-  // 1. Renderizar Categorías Estándar
+  // 1. Renderizar Categorías Estándar con botón de eliminar para Admin
   Object.keys(categoriesConfig).forEach(catKey => {
     const catInfo = categoriesConfig[catKey];
     const filteredTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === catKey);
@@ -219,12 +217,16 @@ function renderCategories() {
     const card = document.createElement('div');
     card.className = 'category-card';
     
-    let teamsListHtml = '<ul class="cat-teams-list">';
+    let teamsListHtml = '<ul class="cat-teams-list" style="list-style: none; padding: 0;">';
     if (filteredTeams.length === 0) {
       teamsListHtml += '<li><span style="color:#aaa; font-style:italic;">Sin escuadras inscritas aún</span></li>';
     } else {
-      filteredTeams.forEach(([_, t]) => {
-        teamsListHtml += `<li>🛡️ ${t.name}</li>`;
+      filteredTeams.forEach(([teamId, t]) => {
+        teamsListHtml += `
+          <li style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333;">
+            <span>🛡️ ${t.name}</span>
+            ${isAdmin ? `<button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background: transparent; border: none; color: #ff4444; cursor: pointer; font-size: 14px; padding: 2px 6px;">🗑️</button>` : ''}
+          </li>`;
       });
     }
     teamsListHtml += '</ul>';
@@ -242,7 +244,7 @@ function renderCategories() {
     container.appendChild(card);
   });
 
-  // 2. NUEVA TARJETA: Apartado de Equipos en Espera (Bolsa de Trabajo)
+  // 2. Apartado de Equipos en Espera con opción de Asignar y Eliminar
   const waitingTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === 'espera' || !t.categoryRegistered);
   
   const waitingCard = document.createElement('div');
@@ -256,7 +258,6 @@ function renderCategories() {
     waitingListHtml += '<p style="color:#aaa; font-style:italic; padding: 5px;">No hay equipos en la banca de espera.</p>';
   } else {
     waitingTeams.forEach(([teamId, t]) => {
-      // Generar dinámicamente un selector de categorías rápidas
       let optionsHtml = '<option value="">-- Asignar Categ. --</option>';
       Object.entries(categoriesConfig).forEach(([key, val]) => {
         optionsHtml += `<option value="${key}">${val.label}</option>`;
@@ -266,11 +267,12 @@ function renderCategories() {
         <div class="waiting-team-row" style="background:#252538; padding:8px 12px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
           <span style="font-weight:bold; color:#fff;">🛡️ ${t.name}</span>
           ${isAdmin ? `
-            <div style="display:flex; gap:5px;">
+            <div style="display:flex; gap:5px; align-items:center;">
               <select id="quickAssign-${teamId}" style="background:#111; color:#fff; border:1px solid #444; border-radius:4px; padding:3px; font-size:12px;">
                 ${optionsHtml}
               </select>
-              <button onclick="assignCategoryDirectly('${teamId}')" style="background:#ff6b00; color:white; border:none; border-radius:4px; padding:4px 8px; font-size:12px; cursor:pointer;">💾</button>
+              <button onclick="assignCategoryDirectly('${teamId}')" style="background:#ff6b00; color:white; border:none; border-radius:4px; padding:4px 8px; font-size:12px; cursor:pointer;" title="Guardar Categoría">💾</button>
+              <button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background:#ff4444; color:white; border:none; border-radius:4px; padding:4px 8px; font-size:12px; cursor:pointer;" title="Eliminar del Torneo">🗑️</button>
             </div>
           ` : '<span style="font-size:11px; color:#ff6b00; font-style:italic;">Pendiente</span>'}
         </div>
@@ -292,7 +294,6 @@ function renderCategories() {
   container.appendChild(waitingCard);
 }
 
-// FUNCIÓN GLOBAL ADICIONAL PARA ASIGNAR EN TIEMPO REAL
 function assignCategoryDirectly(teamId) {
   if (!currentTournamentId) return;
   const selectElement = document.getElementById(`quickAssign-${teamId}`);
@@ -312,6 +313,18 @@ function assignCategoryDirectly(teamId) {
 }
 window.assignCategoryDirectly = assignCategoryDirectly;
 
+// NUEVA FUNCIÓN: Eliminar Equipo del Torneo Activo
+function deleteTeamFromApp(teamId, teamName) {
+  if (!currentTournamentId) return;
+  if (confirm(`¿Estás seguro de que deseas eliminar por completo al equipo "${teamName}" de este torneo?`)) {
+    const teamRef = ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`);
+    remove(teamRef)
+      .then(() => alert(`🛡️ El equipo "${teamName}" fue removido exitosamente.`))
+      .catch(err => alert("Error al eliminar equipo: " + err.message));
+  }
+}
+window.deleteTeamFromApp = deleteTeamFromApp;
+
 function renderMatchesByVenue() {
   const container = document.getElementById('venuesRolesContainer');
   if (!container) return;
@@ -330,11 +343,18 @@ function renderMatchesByVenue() {
     venueSection.className = 'venue-role-block';
 
     const mapsBtn = venue.mapsUrl ? `<a href="${venue.mapsUrl}" target="_blank" class="btn-maps-link">📍 Ver Ubicación en Maps</a>` : '';
+    
+    // MODIFICACIÓN: Inyección del botón "Eliminar Sede" si es Administrador
+    const deleteVenueBtn = isAdmin ? `<button onclick="deleteVenueFromApp('${venueId}', '${venue.name}')" style="background:#ff4444; color:white; border:none; border-radius:4px; padding:6px 12px; font-size:12px; cursor:pointer; margin-top:8px; display:block;">🗑️ Eliminar Sede / Cancha</button>` : '';
+
     venueSection.innerHTML = `
-      <div class="venue-title-header">
+      <div class="venue-title-header" style="position: relative;">
          <h3>🏢 Sede: ${venue.name}</h3>
          <p>📍 ${venue.address || 'Dirección no especificada'}</p>
-         ${mapsBtn}
+         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+           ${mapsBtn}
+           ${deleteVenueBtn}
+         </div>
       </div>
     `;
 
@@ -394,6 +414,28 @@ function renderMatchesByVenue() {
   });
 }
 
+// NUEVA FUNCIÓN: Eliminar Sede del Torneo Activo (Previene errores si hay partidos)
+function deleteVenueFromApp(venueId, venueName) {
+  if (!currentTournamentId) return;
+
+  // Verificar si la sede tiene partidos asignados vigentes
+  const matchesArr = Object.values(globalMatches);
+  const totalMatchesInVenue = matchesArr.filter(m => m.venueId === venueId).length;
+
+  if (totalMatchesInVenue > 0) {
+    alert(`⚠️ No puedes eliminar la sede "${venueName}" porque tiene ${totalMatchesInVenue} partido(s) programado(s) en ella. Elimina primero los partidos desde la tabla de roles.`);
+    return;
+  }
+
+  if (confirm(`¿Seguro que deseas eliminar la cancha/sede "${venueName}"? Esta acción no se puede deshacer.`)) {
+    const venueRef = ref(db, `tournaments/${currentTournamentId}/venues/${venueId}`);
+    remove(venueRef)
+      .then(() => alert(`🏢 Sede "${venueName}" eliminada correctamente.`))
+      .catch(err => alert("Error al eliminar la sede: " + err.message));
+  }
+}
+window.deleteVenueFromApp = deleteVenueFromApp;
+
 function populateAdminDropdowns() {
   const localSel = document.getElementById('selectLocal');
   const visitorSel = document.getElementById('selectVisitor');
@@ -406,7 +448,6 @@ function populateAdminDropdowns() {
   visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
   venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
 
-  // Solo cargar en la creación de roles aquellos equipos que ya tengan una categoría asignada
   Object.entries(globalTeams).forEach(([id, t]) => {
     if(!t.name || t.categoryRegistered === 'espera' || !t.categoryRegistered) return;
     const catInfo = categoriesConfig[t.categoryRegistered];
@@ -419,7 +460,6 @@ function populateAdminDropdowns() {
     if(v.name) venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
   });
 
-  // Re-inyectar las opciones incluyendo la opción de "Lista de Espera"
   if (teamCatSel) {
     teamCatSel.innerHTML = '<option value="espera">📥 Dejar en lista de espera (Sin categoría)</option>';
     Object.entries(categoriesConfig).forEach(([key, value]) => {
