@@ -156,15 +156,26 @@ onAuthStateChanged(auth, (user) => {
 
 function initGlobalTournamentsObserver() {
   onValue(ref(db, 'tournaments'), (snapshot) => {
-    globalTournaments = snapshot.val() || {};
+    const data = snapshot.val();
+    console.log("DEBUG - Datos de Firebase recibidos:", data); // <-- AGREGA ESTO
+    
+    globalTournaments = data || {};
     renderCompetitionsSelector();
   });
 }
 
 function attachTournamentRealtimeListeners(tournamentId) {
+  console.log("DEBUG: Intentando cargar datos para el torneo ID:", tournamentId); // <-- AGREGA ESTO
+  
   onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
     const data = snapshot.val();
-    if (!data) return;
+    console.log("DEBUG: Datos recibidos de Firebase:", data); // <-- Y ESTO TAMBIÉN
+    
+    if (!data) {
+        console.warn("⚠️ ¡Cuidado! No se encontraron datos para este ID en Firebase.");
+        return;
+    }
+    // ... resto del código ...
 
     currentTournamentData = data;
     globalTeams = data.teams || {};
@@ -330,6 +341,7 @@ async function handleLogout() { await signOut(auth); document.getElementById('bt
 
 function deleteMatchEvent(matchId) { if (confirm("¿Borrar este partido?")) remove(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`)); }
 function deleteTeamFromApp(teamId, teamName) { if (Object.values(globalMatches).some(m => m && (m.localId === teamId || m.visitorId === teamId))) return alert("El equipo ya tiene juegos."); if (confirm(`¿Eliminar ${teamName}?`)) remove(ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`)); }
+// --- FUNCIONES DE EDICIÓN ---
 function editTeam(teamId) {
     const t = globalTeams[teamId];
     const newName = prompt("Editar nombre del equipo:", t.name);
@@ -351,50 +363,30 @@ function editVenue(venueId) {
         name: newName, address: newAddress, mapsUrl: newMaps 
     }).then(() => alert("✅ Sede actualizada."));
 }
-window.deleteMatchEvent = deleteMatchEvent; window.deleteTeamFromApp = deleteTeamFromApp;
 
-function renderDashboard() { const teamsArr = Object.values(globalTeams).filter(t => t?.name); document.getElementById('dashTeamsCount').innerText = teamsArr.length; document.getElementById('dashMatchesCount').innerText = Object.values(globalMatches).filter(m => m?.date).length; const container = document.getElementById('dashboardTeamsContainer'); if (!container) return; container.innerHTML = ''; teamsArr.forEach(team => { const pill = document.createElement('div'); pill.className = 'team-pill'; pill.innerHTML = `<img src="${team.logoUrl || 'https://placehold.co/40x40/007bff/ffffff?text=🏀'}" onerror="this.src='https://placehold.co/40x40/007bff/ffffff?text=🏀'"><div><strong>${team.name}</strong><br><small style="color: #ff6b00;">${categoriesConfig[team.categoryRegistered]?.label || 'Sin Cat.'}</small></div>`; container.appendChild(pill); }); }
+// --- RENDERIZADO CATEGORÍAS ---
 function renderCategories() {
-  const container = document.getElementById('categoriesContainer');
-  if (!container) return;
-  container.innerHTML = '';
-  const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t?.name);
-  Object.keys(categoriesConfig).forEach(catKey => {
-    const filteredTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === catKey);
-    const card = document.createElement('div'); card.className = 'category-card';
-    let list = '<ul style="list-style:none; padding:0;">';
-    filteredTeams.forEach(([teamId, t]) => {
-      list += `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #333;">
-        <span>🛡️ ${t.name}${t.groupAssigned ? ` <span style="background:#ff6b00; font-size:10px; color:#fff; padding:2px 5px; border-radius:3px;">Grup: ${t.groupAssigned.toUpperCase()}</span>` : ''}</span>
-        ${isAdmin ? `<div><button onclick="editTeam('${teamId}')" style="background:none; border:none; cursor:pointer;">✏️</button> <button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background:none; border:none; cursor:pointer;">🗑️</button></div>` : ''}
-      </li>`;
+    const container = document.getElementById('categoriesContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t?.name);
+    Object.keys(categoriesConfig).forEach(catKey => {
+        const filteredTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === catKey);
+        const card = document.createElement('div'); card.className = 'category-card';
+        let list = '<ul style="list-style:none; padding:0;">';
+        filteredTeams.forEach(([teamId, t]) => {
+            list += `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #333;">
+                <span>🛡️ ${t.name}${t.groupAssigned ? ` <span style="background:#ff6b00; font-size:10px; color:#fff; padding:2px 5px; border-radius:3px;">Grup: ${t.groupAssigned.toUpperCase()}</span>` : ''}</span>
+                ${isAdmin ? `<div><button onclick="editTeam('${teamId}')" style="background:none; border:none; cursor:pointer;">✏️</button> <button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background:none; border:none; cursor:pointer;">🗑️</button></div>` : ''}
+            </li>`;
+        });
+        list += '</ul>';
+        card.innerHTML = `<div class="category-card-header"><h4>${categoriesConfig[catKey].label}</h4><p>${categoriesConfig[catKey].desc}</p></div><div class="category-card-body"><h5>Clubes:</h5>${list}</div>`;
+        container.appendChild(card);
     });
-    list += '</ul>';
-    card.innerHTML = `<div class="category-card-header"><h4>${categoriesConfig[catKey].label}</h4><p>${categoriesConfig[catKey].desc}</p></div><div class="category-card-body"><h5>Clubes:</h5>${list}</div>`;
-    container.appendChild(card);
-  });
-}
-function editTeam(teamId) {
-    const t = globalTeams[teamId];
-    const newName = prompt("Editar nombre del equipo:", t.name);
-    if (!newName) return;
-    const newLogo = prompt("Editar URL del logo:", t.logoUrl || "");
-    const newGroup = prompt("Editar Grupo (Ej: A, B):", t.groupAssigned || "");
-    update(ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`), { 
-        name: newName, logoUrl: newLogo, groupAssigned: newGroup.trim().toLowerCase() 
-    }).then(() => alert("✅ Equipo actualizado."));
 }
 
-function editVenue(venueId) {
-    const v = globalVenues[venueId];
-    const newName = prompt("Editar nombre de la sede:", v.name);
-    if (!newName) return;
-    const newAddress = prompt("Editar dirección:", v.address || "");
-    const newMaps = prompt("Editar link de Google Maps:", v.mapsUrl || "");
-    update(ref(db, `tournaments/${currentTournamentId}/venues/${venueId}`), { 
-        name: newName, address: newAddress, mapsUrl: newMaps 
-    }).then(() => alert("✅ Sede actualizada."));
-}
+// --- EXPORTAR FUNCIONES ---
 window.deleteMatchEvent = deleteMatchEvent; 
 window.deleteTeamFromApp = deleteTeamFromApp;
 window.editTeam = editTeam;
