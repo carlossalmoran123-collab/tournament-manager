@@ -3,197 +3,182 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DRIBLA, PASA Y ENCESTA STATS</title>
+  <title>Gestión de Torneos de Básquetbol</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <!-- Encabezado de la marca -->
-  <header style="text-align: center; padding: 20px; background-color: #111; border-bottom: 2px solid #ff6b00;">
-    <h1 style="color: #fff; font-weight: bold; letter-spacing: 1px; font-size: 26px; margin: 0; font-family: sans-serif;">
-        🏀 DRIBLA, PASA Y ENCESTA <span style="color: #ff6b00;">STATS</span>
-    </h1>
-  </header>
-
-  <!-- Selector Inicial de Competencia -->
-  <main id="competition-selector-screen" class="container full-center">
-    <div class="welcome-card text-center">
-      <h2>Mesa de Control Global</h2>
-      <p>Selecciona un torneo activo para visualizar los calendarios, duelas y escuadras participantes:</p>
+  <!-- PANTALLA 1: SELECTOR DE TORNEOS MAESTROS -->
+  <div id="competition-selector-screen" class="selector-container">
+    <div class="selector-card">
+      <div class="logo-placeholder">🏆</div>
+      <h2>Panel del Torneo</h2>
+      <p class="selector-subtitle">Selecciona el evento deportivo activo o accede como administrador para gestionar los roles.</p>
       
-      <div class="form-group" style="margin: 20px 0;">
-        <select id="globalCompetitionSelect" class="main-select">
-          <option value="">Cargando eventos maestros...</option>
+      <div class="form-group">
+        <label for="globalCompetitionSelect">Competencia Activa:</label>
+        <select id="globalCompetitionSelect">
+          <!-- Cargado dinámicamente desde Firebase -->
         </select>
       </div>
 
-      <div style="display: flex; gap: 10px; justify-content: center;">
-        <button id="btnEnterApp" class="btn btn-primary">Entrar al Torneo</button>
-        <button id="btnGoToAdminPrep" class="btn btn-secondary">Panel Administrador</button>
-      </div>
-    </div>
-  </main>
-
-  <!-- Menú de Navegación Interno -->
-  <nav style="display: none;">
-    <div class="nav-container">
-      <button class="nav-btn active" data-section="dashboard" onclick="switchSection('dashboard')">📈 Inicio</button>
-      <button class="nav-btn" data-section="categories" onclick="switchSection('categories')">🏀 Categorías</button>
-      <button class="nav-btn" data-section="roles" onclick="switchSection('roles')">📅 Rol de Juegos</button>
-      <button class="nav-btn" data-section="admin" onclick="switchSection('admin')">⚙️ Ajustes</button>
-      <button id="btnBackToSelector" class="btn-exit">🔄 Cambiar Torneo</button>
-    </div>
-  </nav>
-
-  <!-- Contenido Principal de la Aplicación -->
-  <div id="main-app-content" style="display: none;" class="container">
-    
-    <div class="tournament-hero-banner">
-      <h2 id="appTournamentTitle">---</h2>
-      <div class="hero-details">
-        <span>📍 <strong>Sede:</strong> <span id="appTournamentVenue">---</span></span> | 
-        <span>🏆 <strong>Sistema:</strong> <span id="appTournamentFormat">---</span></span>
-      </div>
-    </div>
-
-    <!-- SECCIÓN: DASHBOARD / RESUMEN -->
-    <section id="dashboard" class="section active">
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <h3 id="dashTeamsCount">0</h3>
-          <p>Clubes Inscritos</p>
-        </div>
-        <div class="metric-card">
-          <h3 id="dashMatchesCount">0</h3>
-          <p>Encuentros Agendados</p>
-        </div>
-      </div>
-      <h3 style="margin-top: 30px; border-bottom: 2px solid #ff6b00; padding-bottom: 5px;">🛡️ Clubes en la Competencia</h3>
-      <div id="dashboardTeamsContainer" class="pills-grid"></div>
-    </section>
-
-    <!-- SECCIÓN: CATEGORÍAS -->
-    <section id="categories" class="section">
-      <h3>🏀 Clasificación por Categorías de Desarrollo</h3>
-      <div id="categoriesContainer" class="categories-grid"></div>
-    </section>
-
-    <!-- SECCIÓN: ROL DE JUEGOS -->
-    <section id="roles" class="section">
-      <h3>📅 Programación Oficial de Encuentros</h3>
-      <div id="venuesRolesContainer"></div>
-    </section>
-
-    <!-- SECCIÓN: PANEL ADMINISTRADOR -->
-    <section id="admin" class="section">
+      <button id="btnEnterApp" class="btn-primary">🚪 Entrar a la Aplicación</button>
       
-      <!-- Bloque de Autenticación -->
-      <div id="admin-login-box" class="full-center" style="margin-top: 40px;">
-        <form id="loginForm" class="welcome-card" style="width: 100%; max-width: 400px;">
-          <h3>🔐 Credenciales de Administrador</h3>
+      <hr class="selector-divider">
+      
+      <!-- Panel de Acceso Coach (Login) -->
+      <div id="admin-login-box" class="login-box">
+        <h3>🔐 Acceso Coach (Administrador)</h3>
+        <form id="loginForm">
           <div class="form-group">
-            <label>Correo Electrónico:</label>
-            <input type="email" id="loginEmail" placeholder="admin@dribla.com" required>
+            <input type="email" id="loginEmail" placeholder="Correo electrónico" required>
           </div>
           <div class="form-group">
-            <label>Contraseña:</label>
-            <input type="password" id="loginPassword" placeholder="••••••••" required>
+            <input type="password" id="loginPassword" placeholder="Contraseña" required>
           </div>
-          <button type="submit" class="btn btn-primary" style="width:100%;">Ingresar como Coach</button>
+          <button type="submit" class="btn-secondary">Iniciar Sesión</button>
         </form>
       </div>
 
-      <!-- Tableros de Gestión Privada -->
-      <div id="admin-dashboard-panels" style="display: none;" class="admin-grid">
-        
-        <div class="admin-sidebar-card">
-          <h4>Mesa de Control Activa</h4>
-          <p>Bienvenido Administrador. Los selectores de partidos ahora se filtran automáticamente de forma estricta por categoría para evitar cruces.</p>
-          <button id="logoutBtn" class="btn btn-danger" style="width: 100%; margin-top: 15px;">🔒 Cerrar Sesión Segura</button>
+      <!-- Botón visible solo cuando ya está autenticado -->
+      <button id="btnGoToAdminPrep" class="btn-secondary admin-only-block">⚙️ Ir a Panel de Administración</button>
+    </div>
+  </div>
+
+  <!-- PANTALLA 2: CONTENIDO PRINCIPAL DE LA APLICACIÓN -->
+  <div id="main-app-content" style="display: none;">
+    
+    <!-- Encabezado Dinámico -->
+    <header class="app-header">
+      <div class="header-container">
+        <div>
+          <h1 id="appTournamentTitle">Cargando Torneo...</h1>
+          <p class="tournament-meta">📍 <span id="appTournamentVenue">--</span> | 📋 <span id="appTournamentFormat">--</span></p>
         </div>
+        <div class="header-actions">
+          <button id="btnBackToSelector" class="btn-back">⬅️ Cambiar Torneo</button>
+          <button id="logoutBtn" class="btn-logout admin-only">Cerrar Sesión Coach</button>
+        </div>
+      </div>
+    </header>
 
-        <div class="forms-wrapper-grid">
-          <!-- Formulario 1: Crear Evento Maestro -->
-          <div class="panel-card">
-            <h4>🏆 1. Registro de Evento Maestro (Raíz)</h4>
-            <form id="eventForm">
-              <div class="form-group">
-                <label>Nombre del Torneo:</label>
-                <input type="text" id="eventName" placeholder="Ej. Liga Municipal Atzompa 2026" required>
-              </div>
-              <div class="form-group">
-                <label>Sede Principal u Organización:</label>
-                <input type="text" id="eventLocation" placeholder="Ej. Cancha Municipal">
-              </div>
-              <div class="form-group">
-                <label>Límite de Equipos Sugerido:</label>
-                <input type="number" id="eventTeams" placeholder="20">
-              </div>
-              <div class="form-group">
-                <label>Formato de Competencia:</label>
-                <select id="competitionFormat">
-                  <option value="Round Robin (Todos contra todos)">Round Robin</option>
-                  <option value="Eliminación Directa">Eliminación Directa</option>
-                  <option value="Grupos con Fase Final">Grupos con Fase Final</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Notas o Convocatoria Breve:</label>
-                <textarea id="eventDescription" placeholder="Detalles de premiación, arbitraje..."></textarea>
-              </div>
-              <button type="submit" class="btn btn-success">Crear Evento Maestro</button>
-            </form>
+    <!-- Barra de Navegación Global -->
+    <nav class="app-nav">
+      <ul class="nav-links">
+        <li><button class="nav-btn active" data-section="dashboard" onclick="switchSection('dashboard')">🏠 Inicio</button></li>
+        <li><button class="nav-btn" data-section="categories" onclick="switchSection('categories')">🛡️ Categorías</button></li>
+        <li><button class="nav-btn" data-section="roles" onclick="switchSection('roles')">📅 Rol de Juegos</button></li>
+        <li><button class="nav-btn" data-section="classification" onclick="switchSection('classification')">📊 Clasificación</button></li>
+        <li><button class="nav-btn admin-only" data-section="admin" onclick="switchSection('admin')">⚙️ Panel Admin</button></li>
+      </ul>
+    </nav>
+
+    <!-- Contenedor de Secciones -->
+    <main class="app-main-container">
+
+      <!-- SECCIÓN 1: INICIO / DASHBOARD -->
+      <section id="dashboard" class="section active">
+        <div class="dashboard-grid">
+          <div class="stat-card">
+            <h3>Clubes</h3>
+            <p id="dashTeamsCount" class="stat-number">0</p>
           </div>
+          <div class="stat-card">
+            <h3>Partidos</h3>
+            <p id="dashMatchesCount" class="stat-number">0</p>
+          </div>
+        </div>
+        
+        <h2 class="section-title" style="margin-top: 30px;">🛡️ Equipos Inscritos</h2>
+        <div id="dashboardTeamsContainer" class="teams-pills-grid">
+          <!-- Se llena dinámicamente con JS -->
+        </div>
+      </section>
 
-          <!-- Formulario 2: Registrar Clubes por Categoría Directa -->
-          <div class="panel-card">
-            <h4>🛡️ 2. Inscripción Directa de Clubes</h4>
+      <!-- SECCIÓN 2: CATEGORÍAS -->
+      <section id="categories" class="section">
+        <h2 class="section-title">🏀 Ramas y Categorías</h2>
+        <div id="categoriesContainer" class="categories-grid">
+          <!-- Tarjetas de categorías cargadas dinámicamente -->
+        </div>
+      </section>
+
+      <!-- SECCIÓN 3: ROL DE JUEGOS -->
+      <section id="roles" class="section">
+        <h2 class="section-title">📅 Programación y Roles de Juego</h2>
+        <div id="venuesRolesContainer" class="venues-roles-stack">
+          <!-- Agenda organizada por canchas y fechas -->
+        </div>
+      </section>
+
+      <!-- SECCIÓN 4: CLASIFICACIÓN -->
+      <section id="classification" class="section">
+        <h2 class="section-title">📊 Tabla de Posiciones y Clasificación</h2>
+        <div class="form-group" style="max-width: 300px; margin-bottom: 20px;">
+          <label for="classCategoryFilter">Filtrar por Categoría:</label>
+          <select id="classCategoryFilter">
+            <!-- Se llena dinámicamente con JS -->
+          </select>
+        </div>
+        <div id="classificationTablesContainer">
+          <!-- Tablas renderizadas automáticamente -->
+        </div>
+      </section>
+
+      <!-- SECCIÓN 5: PANEL DE ADMINISTRACIÓN (SOLO PARA EL COACH) -->
+      <section id="admin" class="section">
+        <h2 class="section-title">🛠️ Panel de Control Técnico (Exclusivo Coach)</h2>
+        <p class="admin-warning-text admin-only-hidden">⚠️ Debes iniciar sesión como Administrador en la pantalla de inicio para desbloquear estos formularios.</p>
+        
+        <div id="admin-dashboard-panels" class="admin-panels-grid" style="display: none;">
+          
+          <!-- Formulario: Registrar Equipo -->
+          <div class="admin-form-card">
+            <h3>🛡️ Registrar Nuevo Equipo</h3>
             <form id="teamForm">
               <div class="form-group">
-                <label>Categoría a la que se inscribe:</label>
-                <select id="regTeamCategory" required></select>
+                <label for="regTeamName">Nombre del Equipo:</label>
+                <input type="text" id="regTeamName" placeholder="Ej: Lobos Oaxaca" required>
               </div>
               <div class="form-group">
-                <label>Nombre de la Escuadra específico para esta categoría:</label>
-                <input type="text" id="regTeamName" placeholder="Ej. Grizzlies Chupon o Grizzlies Micro" required>
-              </div>
-              <div class="form-group">
-                <label>URL del Logotipo / Escudo:</label>
+                <label for="regTeamLogo">Enlace del Logo (URL URL):</label>
                 <input type="url" id="regTeamLogo" placeholder="https://ejemplo.com/logo.png">
               </div>
-              <button type="submit" class="btn btn-success">Inscribir Equipo a la Categoría</button>
+              <div class="form-group">
+                <label for="regTeamCategory">Categoría de Inscripción:</label>
+                <select id="regTeamCategory" required></select>
+              </div>
+              <button type="submit" class="btn-primary">💾 Registrar Equipo</button>
             </form>
           </div>
 
-          <!-- Formulario 3: Agregar Canchas / Sedes -->
-          <div class="panel-card">
-            <h4>🏢 3. Alta de Canchas y Sedes</h4>
-            <form id="venueForm">
+          <!-- Formulario: Configurar Formato de Competencia -->
+          <div class="admin-form-card">
+            <h3>⚙️ Configurar Formato de Categoría</h3>
+            <form id="categoryFormatForm">
               <div class="form-group">
-                <label>Identificador de la Cancha:</label>
-                <input type="text" id="venueName" placeholder="Ej. Gimnasio Universitario C1" required>
+                <label for="formatSelectCategory">Categoría:</label>
+                <select id="formatSelectCategory" required></select>
               </div>
               <div class="form-group">
-                <label>Dirección / Ubicación Textual:</label>
-                <input type="text" id="venueAddress" placeholder="Ej. Av. Universidad S/N">
+                <label for="systemTypeSelect">Sistema de Competencia:</label>
+                <select id="systemTypeSelect" required>
+                  <option value="todos-contra-todos">Todos contra Todos (Liga Única)</option>
+                  <option value="grupos">Fase de Grupos</option>
+                </select>
               </div>
-              <div class="form-group">
-                <label>Enlace de Google Maps (URL):</label>
-                <input type="url" id="venueMapsUrl" placeholder="https://maps.google.com/...">
-              </div>
-              <button type="submit" class="btn btn-success">Guardar Sede</button>
+              <button type="submit" class="btn-primary">🔄 Guardar Formato</button>
             </form>
           </div>
 
-          <!-- Formulario 4: Programar Encuentros -->
-          <div class="panel-card">
-            <h4>📅 4. Calendario y Rol de Juegos</h4>
-            <p style="font-size:11px; color:#ff6b00; margin-bottom:10px;">💡 Selecciona primero la categoría para que los selectores de equipos se actualicen de forma estricta.</p>
+          <!-- Formulario: Programar Partido -->
+          <div class="admin-form-card">
+            <h3>📅 Programar Partido</h3>
             <form id="matchForm">
               <div class="form-group">
-                <label>Categoría del Partido a Programar:</label>
-                <select id="matchCategory">
-                  <option value="chupon" selected>🍼 Chupon</option>
+                <label for="matchCategory">Categoría del Partido:</label>
+                <select id="matchCategory" required>
+                  <option value="chupon">🍼 Chupon</option>
                   <option value="micro">👶 Micro</option>
                   <option value="infantil">🧒 Infantil</option>
                   <option value="pasarela">🏀 Pasarela</option>
@@ -204,48 +189,121 @@
                   <option value="sub23">👨‍🎓 Sub 23</option>
                 </select>
               </div>
-              <div class="form-row-twin">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
-                  <label>Escuadra Local (Solo de esta cat.):</label>
-                  <select id="selectLocal" required>
-                    <option value="">-- Elige Categoría Primero --</option>
-                  </select>
+                  <label for="selectLocal">Escuadra Local:</label>
+                  <select id="selectLocal" required></select>
                 </div>
                 <div class="form-group">
-                  <label>Escuadra Visitante (Solo de esta cat.):</label>
-                  <select id="selectVisitor" required>
-                    <option value="">-- Elige Categoría Primero --</option>
-                  </select>
+                  <label for="selectVisitor">Escuadra Visitante:</label>
+                  <select id="selectVisitor" required></select>
                 </div>
               </div>
               <div class="form-group">
-                <label>Fecha del Encuentro:</label>
+                <label for="matchDate">Fecha del Encuentro:</label>
                 <input type="date" id="matchDate" required>
               </div>
-              <div class="form-row-twin">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
-                  <label>Hora de Inicio:</label>
+                  <label for="matchStartTime">Hora Inicio:</label>
                   <input type="time" id="matchStartTime" required>
                 </div>
                 <div class="form-group">
-                  <label>Hora de Cierre:</label>
+                  <label for="matchEndTime">Hora Fin:</label>
                   <input type="time" id="matchEndTime" required>
                 </div>
               </div>
               <div class="form-group">
-                <label>Cancha Asignada:</label>
+                <label for="selectMatchVenue">Cancha Asignada:</label>
                 <select id="selectMatchVenue" required></select>
               </div>
-              <button type="submit" class="btn btn-primary" style="width: 100%;">Indexar Partido al Rol</button>
+              <button type="submit" class="btn-primary">⚡ Publicar Partido</button>
+            </form>
+          </div>
+
+          <!-- Formulario: Registrar Marcadores -->
+          <div class="admin-form-card">
+            <h3>📝 Registrar Marcador / Resultado</h3>
+            <form id="scoreForm">
+              <div class="form-group">
+                <label for="scoreSelectMatch">Seleccionar Partido:</label>
+                <select id="scoreSelectMatch" required>
+                  <option value="">-- Selecciona un Partido Programado --</option>
+                </select>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                <div class="form-group">
+                  <label id="labelLocalTeam" style="text-transform: none;">Puntos Local:</label>
+                  <input type="number" id="scoreLocal" min="0" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                  <label id="labelVisitorTeam" style="text-transform: none;">Puntos Visitante:</label>
+                  <input type="number" id="scoreVisitor" min="0" placeholder="0" required>
+                </div>
+              </div>
+              <button type="submit" class="btn-primary">💾 Guardar Resultado</button>
+            </form>
+          </div>
+
+          <!-- Formulario: Agregar Canchas -->
+          <div class="admin-form-card">
+            <h3>🏢 Registrar Nueva Cancha / Sede</h3>
+            <form id="venueForm">
+              <div class="form-group">
+                <label for="venueName">Nombre de la Cancha:</label>
+                <input type="text" id="venueName" placeholder="Ej: Cancha Central Cabrera" required>
+              </div>
+              <div class="form-group">
+                <label for="venueAddress">Dirección:</label>
+                <input type="text" id="venueAddress" placeholder="Ej: Av. Juárez S/N, Centro">
+              </div>
+              <div class="form-group">
+                <label for="venueMapsUrl">Enlace Google Maps (URL):</label>
+                <input type="url" id="venueMapsUrl" placeholder="https://maps.google.com/...">
+              </div>
+              <button type="submit" class="btn-primary">🏢 Guardar Ubicación</button>
+            </form>
+          </div>
+
+          <!-- Formulario Maestro: Crear un Nuevo Torneo General -->
+          <div class="admin-form-card" style="grid-column: 1 / -1;">
+            <h3>🏆 Inicializar Nueva Competencia General (Torneo Completo)</h3>
+            <form id="eventForm">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                  <label for="eventName">Nombre del Torneo:</label>
+                  <input type="text" id="eventName" placeholder="Ej: Copa Oaxaca 2026" required>
+                </div>
+                <div class="form-group">
+                  <label for="eventLocation">Sede Principal:</label>
+                  <input type="text" id="eventLocation" placeholder="Ej: Santa María Atzompa">
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                  <label for="eventTeams">Límite Estimado Equipos:</label>
+                  <input type="number" id="eventTeams" value="32">
+                </div>
+                <div class="form-group">
+                  <label for="competitionFormat">Formato Inicial:</label>
+                  <input type="text" id="competitionFormat" value="Fase de Grupos + Playoffs">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="eventDescription">Convocatoria / Notas Extra:</label>
+                <textarea id="eventDescription" rows="2" placeholder="Detalles de premiación, arbitraje..."></textarea>
+              </div>
+              <button type="submit" class="btn-secondary" style="width: 100%;">🚀 Crear y Desplegar Nuevo Evento Maestro</button>
             </form>
           </div>
 
         </div>
-      </div>
-    </section>
+      </section>
 
+    </main>
   </div>
 
+  <!-- Script Principal usando Firebase v10 modular -->
   <script type="module" src="script.js"></script>
 </body>
 </html>

@@ -1,222 +1,96 @@
 /* ==========================================================================
-   CONFIGURACIÓN GENERAL Y VARIABLES (Modo Oscuro Deportivo)
+   VARIABLES DE DISEÑO - MODO OSCURO DEPORTIVO
    ========================================================================== */
 :root {
-  --bg-main: #11141a;
-  --bg-card: #1b1f27;
-  --bg-input: #252b36;
-  --accent-orange: #ff6b00;
-  --accent-orange-hover: #e05e00;
+  --bg-main: #0f1319;
+  --bg-card: #171d26;
+  --border-color: #262f3d;
   --text-main: #f3f4f6;
   --text-muted: #9ca3af;
-  --border-color: #2e3746;
-  --success: #10b981;
-  --danger: #ef4444;
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  --accent-orange: #ff6b00;
+  --accent-orange-hover: #e05e00;
+  --danger-red: #ef4444;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
   background-color: var(--bg-main);
   color: var(--text-main);
-  line-height: 1.6;
-  padding-bottom: 40px;
-}
-
-/* Ocultar elementos exclusivos de Admin por defecto */
-.admin-only {
-  display: none !important;
-}
-
-/* Cuando la sesión está activa, el JS añade esta clase al body */
-body.is-admin .admin-only {
-  display: block !important;
-}
-body.is-admin div.admin-only,
-body.is-admin section.admin-only {
-  display: grid !important;
+  min-height: 100vh;
 }
 
 /* ==========================================================================
-   PANTALLA 1: Selector de Competencia Global (Pantalla de Entrada)
+   PANTALLA 1: PANEL SELECTOR CENTRALIZADO
    ========================================================================== */
-#competition-selector-screen {
-  min-height: 100vh;
+.selector-container {
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
+  min-height: 100vh;
   padding: 20px;
-  background: radial-gradient(circle at top, #1e2633 0%, var(--bg-main) 70%);
 }
 
-.selector-container {
+.selector-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 30px;
   width: 100%;
-  max-width: 550px;
-  box-shadow: var(--shadow-lg);
+  max-width: 480px;
+  padding: 30px;
   text-align: center;
 }
 
-.selector-container h1 {
-  font-size: 2rem;
-  color: #fff;
-  margin-bottom: 8px;
+.logo-placeholder {
+  font-size: 3.5rem;
+  margin-bottom: 15px;
 }
 
-.selector-container p {
+.selector-subtitle {
   color: var(--text-muted);
-  margin-bottom: 24px;
-}
-
-/* ==========================================================================
-   HEADER DE LA APLICACIÓN PRINCIPAL (Información de Torneo Activo)
-   ========================================================================== */
-header {
-  background: linear-gradient(135deg, #1e2530 0%, #151a22 100%);
-  border-bottom: 2px solid var(--accent-orange);
-  padding: 20px;
-  text-align: center;
-  box-shadow: var(--shadow-sm);
-}
-
-.header-banner h1 {
-  font-size: 1.8rem;
-  color: #fff;
-  letter-spacing: 0.5px;
-}
-
-.header-meta {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
-  margin-top: 8px;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  flex-wrap: wrap;
-}
-
-.header-meta span {
-  background: rgba(255, 107, 0, 0.1);
-  padding: 4px 10px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 107, 0, 0.2);
-}
-
-/* ==========================================================================
-   NAVEGACIÓN PRINCIPAL
-   ========================================================================== */
-nav {
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-color);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 15px;
-}
-
-.nav-links {
-  display: flex;
-  list-style: none;
-}
-
-.nav-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  padding: 16px 20px;
   font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-bottom: 3px solid transparent;
+  margin-bottom: 25px;
+  line-height: 1.4;
 }
 
-.nav-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.nav-btn.active {
-  color: var(--accent-orange);
-  border-bottom-color: var(--accent-orange);
-  background: rgba(255, 107, 0, 0.05);
+.selector-divider {
+  border: 0;
+  height: 1px;
+  background: var(--border-color);
+  margin: 25px 0;
 }
 
 /* ==========================================================================
-   ESTRUCTURA DE CONTENIDO Y SECCIONES
-   ========================================================================== */
-main {
-  max-width: 1200px;
-  margin: 30px auto;
-  padding: 0 20px;
-}
-
-.section {
-  display: none;
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-.section.active {
-  display: block;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-h2.section-title {
-  font-size: 1.6rem;
-  margin-bottom: 20px;
-  border-left: 4px solid var(--accent-orange);
-  padding-left: 10px;
-}
-
-/* ==========================================================================
-   FORMULARIOS, SELECTORES Y BOTONES (UI Consistente)
+   FORMULARIOS Y ENTRADAS GENERALES
    ========================================================================== */
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   text-align: left;
 }
 
-label {
+.form-group label {
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  margin-bottom: 6px;
-  color: var(--text-muted);
   text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
   letter-spacing: 0.5px;
 }
 
 input, select, textarea {
   width: 100%;
-  background-color: var(--bg-input);
+  background: #11161d;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 10px 14px;
   color: #fff;
-  font-size: 0.95rem;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 1rem;
   transition: border-color 0.2s;
 }
 
@@ -225,100 +99,188 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent-orange);
 }
 
-/* Botonera Base */
-.btn-primary, .btn-secondary, .btn-danger-block {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.1s;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-}
-
+/* BOTONES */
 .btn-primary {
-  background-color: var(--accent-orange);
+  background: var(--accent-orange);
   color: #fff;
+  border: none;
+  font-weight: bold;
+  padding: 12px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 1rem;
+  transition: background 0.2s;
 }
 
 .btn-primary:hover {
-  background-color: var(--accent-orange-hover);
-}
-
-.btn-primary:active {
-  transform: scale(0.98);
+  background: var(--accent-orange-hover);
 }
 
 .btn-secondary {
-  background-color: var(--bg-input);
-  color: var(--text-main);
+  background: #222c3a;
+  color: #fff;
   border: 1px solid var(--border-color);
+  font-weight: 500;
+  padding: 11px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 0.95rem;
+  transition: background 0.2s;
 }
 
 .btn-secondary:hover {
-  background-color: var(--border-color);
-}
-
-.btn-danger-block {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: var(--danger);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.btn-danger-block:hover {
-  background-color: var(--danger);
-  color: #fff;
+  background: #2b374a;
 }
 
 /* ==========================================================================
-   VISTA 1: DASHBOARD (Mesa de Control Rápida)
+   PANTALLA 2: APLICACIÓN MAESTRA (HEADER Y NAV)
    ========================================================================== */
+.app-header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 15px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.tournament-meta {
+  color: var(--accent-orange);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-back, .btn-logout {
+  background: #222c3a;
+  border: 1px solid var(--border-color);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-logout {
+  background: #3a1e22;
+  border-color: #5c2429;
+}
+
+/* NAVEGACIÓN PRINCIPAL */
+.app-nav {
+  background: #121820;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.nav-links {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 15px 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.02);
+}
+
+.nav-btn.active {
+  color: var(--accent-orange);
+  border-bottom: 3px solid var(--accent-orange);
+  background: rgba(255, 107, 0, 0.04);
+}
+
+/* ==========================================================================
+   ESTRUCTURA DE SECCIONES (MAIN CONTENEDOR)
+   ========================================================================== */
+.app-main-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 25px 20px;
+}
+
+.section {
+  display: none;
+}
+
+.section.active {
+  display: block;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  border-left: 4px solid var(--accent-orange);
+  padding-left: 10px;
+}
+
+/* DASHBOARD / INICIO */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
-  margin-bottom: 30px;
 }
 
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 20px;
   text-align: center;
-  box-shadow: var(--shadow-sm);
 }
 
-.stat-card .number {
-  font-size: 2.5rem;
-  font-weight: 800;
-  color: var(--accent-orange);
-  line-height: 1.2;
-}
-
-.stat-card .label {
-  font-size: 0.85rem;
+.stat-card h3 {
   color: var(--text-muted);
+  font-size: 0.9rem;
   text-transform: uppercase;
+}
+
+.stat-number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: var(--accent-orange);
   margin-top: 5px;
 }
 
-/* Contenedor de Mini-pills de equipos en el Inicio */
-.dashboard-teams-grid {
+.teams-pills-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
 }
 
 .team-pill {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 10px;
   display: flex;
   align-items: center;
@@ -326,16 +288,14 @@ input:focus, select:focus, textarea:focus {
 }
 
 .team-pill img {
-  width: 36px;
-  height: 36px;
+  width: 35px;
+  height: 35px;
   border-radius: 50%;
   object-fit: cover;
-  background: #333;
+  background: #1a222d;
 }
 
-/* ==========================================================================
-   VISTA 2: CATEGORÍAS (Estructura de Tarjetas)
-   ========================================================================== */
+/* CATEGORÍAS */
 .categories-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -344,84 +304,60 @@ input:focus, select:focus, textarea:focus {
 
 .category-card {
   background: var(--bg-card);
-  border-top: 4px solid var(--accent-orange);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
 }
 
 .category-card-header {
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.15);
+  background: #1d2532;
+  padding: 15px;
   border-bottom: 1px solid var(--border-color);
 }
 
 .category-card-header h4 {
-  font-size: 1.15rem;
   color: #fff;
 }
 
 .category-card-header p {
   font-size: 0.8rem;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .category-card-body {
-  padding: 16px;
-  flex-grow: 1;
+  padding: 15px;
 }
 
 .category-card-body h5 {
   font-size: 0.85rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-
-/* Botón de eliminación en línea para clubes dentro de categorías */
-.btn-inline-delete {
-  background: transparent;
-  border: none;
-  color: var(--danger);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.2s, transform 0.1s;
-}
-
-.btn-inline-delete:hover {
-  background: rgba(239, 68, 68, 0.15);
-  transform: scale(1.1);
-}
-
-.btn-inline-delete:active {
-  transform: scale(0.95);
+  color: var(--accent-orange);
+  margin-bottom: 10px;
 }
 
 /* ==========================================================================
-   VISTA 3: ROLES DE JUEGOS (Por Sedes y Fechas)
+   VISTAS DEL ROL DE JUEGOS REESTRUCTURADO
    ========================================================================== */
+.venues-roles-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 35px;
+}
+
 .venue-role-block {
-  background: var(--bg-card);
+  background: #11161e;
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  margin-bottom: 30px;
-  overflow: hidden;
-  box-shadow: var(--shadow-lg);
+  border-radius: 10px;
+  padding: 20px;
 }
 
 .venue-title-header {
-  background: linear-gradient(90deg, #232a35 0%, var(--bg-card) 100%);
-  padding: 20px;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 15px;
 }
 
 .venue-title-header h3 {
-  font-size: 1.3rem;
   color: #fff;
+  font-size: 1.3rem;
 }
 
 .venue-title-header p {
@@ -429,134 +365,111 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-muted);
 }
 
-.btn-maps-link {
-  display: inline-block;
-  font-size: 0.8rem;
-  color: var(--accent-orange);
-  text-decoration: none;
-  margin-top: 6px;
-  font-weight: 600;
-}
-.btn-maps-link:hover {
-  text-decoration: underline;
-}
-
-/* Separadores de fecha dentro de cada gimnasio */
-.date-role-block {
-  padding: 0 20px 20px 20px;
-}
-
 .date-divider {
-  background: #11141a;
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  color: #fff;
-  letter-spacing: 1px;
-  border-radius: 4px;
-  margin-top: 20px;
-  margin-bottom: 15px;
-  border-left: 3px solid var(--success);
+  background: #1b222d;
+  color: var(--accent-orange);
+  padding: 8px 12px;
+  border-radius: 5px;
+  margin: 15px 0 12px 0;
+  font-size: 0.95rem;
 }
 
-/* Distribución de tarjetas de encuentros */
 .matches-table-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 15px;
 }
 
 .match-schedule-card {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 16px;
+  padding: 15px;
   position: relative;
-  transition: box-shadow 0.2s;
-}
-
-.match-schedule-card:hover {
-  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.02);
 }
 
 .match-time-badge {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: bold;
-  color: var(--accent-orange);
-  margin-bottom: 4px;
+  background: #222c3a;
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-bottom: 10px;
 }
 
 .match-category-tag {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  float: right;
   font-size: 0.75rem;
-  background: var(--bg-input);
-  padding: 2px 8px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .match-teams-vs {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.vs-team {
-  font-size: 1rem;
-}
-.vs-team small {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
-.vs-divider {
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: var(--text-muted);
-  text-align: left;
-  padding-left: 10px;
-  border-left: 2px dashed var(--border-color);
-  margin: 2px 0;
-}
-
-.btn-delete-match {
-  background: transparent;
-  border: none;
-  color: var(--danger);
-  font-size: 0.8rem;
-  cursor: pointer;
-  margin-top: 12px;
-  display: inline-block;
-}
-.btn-delete-match:hover {
-  text-decoration: underline;
-}
-
-/* ==========================================================================
-   VISTA 4: PANEL DE ADMINISTRACIÓN Y LOGIN
-   ========================================================================== */
-.admin-auth-centered {
-  display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  min-height: 400px;
-}
-
-.login-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  padding: 30px;
-  border-radius: 10px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: var(--shadow-lg);
+  margin: 10px 0;
   text-align: center;
 }
 
-/* Dashboard de Formularios cuando la sesión es válida */
-.admin-grid-layout {
+.match-teams-vs > div {
+  width: 42%;
+}
+
+.vs-divider {
+  width: 16% !important;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: #111;
+  padding: 3px 0;
+  border-radius: 3px;
+}
+
+.btn-delete-match {
+  width: 100%;
+  background: #2b181b;
+  border: 1px solid #4a1d22;
+  color: #ff9b9b;
+  padding: 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+/* ==========================================================================
+   ESTILOS COMPONENTES TABLAS DE CLASIFICACIÓN
+   ========================================================================== */
+.classification-table th, 
+.classification-table td {
+  padding: 12px 10px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.classification-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.classification-table tbody tr:hover {
+  background: rgba(255, 107, 0, 0.04);
+}
+
+#classification h3 {
+  margin: 25px 0 10px 0;
+  font-size: 1.2rem;
+  color: #fff;
+  border-left: 3px solid var(--accent-orange);
+  padding-left: 8px;
+  text-transform: uppercase;
+}
+
+/* ==========================================================================
+   PANEL ADMIN VISIBLE / OCULTO INTERFACES
+   ========================================================================== */
+.admin-panels-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 25px;
@@ -564,64 +477,29 @@ input:focus, select:focus, textarea:focus {
 
 .admin-form-card {
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border: 1px solid #333d4b;
+  border-radius: 8px;
   padding: 20px;
-  box-shadow: var(--shadow-sm);
 }
 
 .admin-form-card h3 {
-  font-size: 1.15rem;
   margin-bottom: 15px;
-  color: #fff;
+  font-size: 1.1rem;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 8px;
+  color: #fff;
 }
 
-/* ==========================================================================
-   ELEMENTOS DE INTERFAZ VACÍA O CARGA
-   ========================================================================== */
-.welcome-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 40px 20px;
-  color: var(--text-muted);
-}
-
-.text-center {
+.admin-warning-text {
+  background: #2a2115;
+  border: 1px solid #543d21;
+  color: #ffe0b2;
+  padding: 15px;
+  border-radius: 6px;
   text-align: center;
 }
 
-/* ==========================================================================
-   RESPONSIVIDAD (Media Queries Celulares y Tablets)
-   ========================================================================== */
-@media (max-width: 768px) {
-  .nav-container {
-    flex-direction: column;
-    padding: 10px 0;
-  }
-  
-  .nav-links {
-    width: 100%;
-    justify-content: center;
-    margin-bottom: 10px;
-  }
-  
-  .nav-btn {
-    padding: 12px 10px;
-    font-size: 0.85rem;
-  }
-  
-  .header-banner h1 {
-    font-size: 1.4rem;
-  }
-  
-  .admin-grid-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .matches-table-grid {
-    grid-template-columns: 1fr;
-  }
-}
+/* CONTROL DINÁMICO DE VISIBILIDAD (SE ENCIENDE MEDIANTE LA CLASE .is-admin EN BODY) */
+body:not(.is-admin) .admin-only { display: none !important; }
+body:not(.is-admin) .admin-only-block { display: none !important; }
+body.is-admin .admin-only-hidden { display: none !important; }
