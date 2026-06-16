@@ -30,13 +30,20 @@ let globalFormats = {};
 const categoriesConfig = {
   "chupon": { label: "🍼 Chupon", desc: "Iniciación y psicomotricidad básica (4-6 años)" },
   "micro": { label: "👶 Micro", desc: "Años 2017 - 2018" },
-  "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
-  "pasarela": { label: "🏀 Pasarela", desc: "Años 2013 - 2014" },
-  "cadetes": { label: "👦 Cadetes", desc: "Años 2011 - 2012" },
-  "juvenil": { label: "👨 Juvenil", desc: "Años 2009 - 2010" },
-  "juvenil-superior": { label: "👨 Juvenil Superior", desc: "Años 2007 - 2008" },
-  "sub21": { label: "👨‍🎓 Sub 21", desc: "Categoría Universitaria Desarrollo" },
-  "sub23": { label: "👨‍🎓 Sub 23", desc: "Categoría Universitaria Avanzada" }
+  "infantil-femenil": { label: "🧒 Infantil Femenil", desc: "Años 2015 - 2016" },
+  "infantil-varonil": { label: "🧒 Infantil Varonil", desc: "Años 2015 - 2016" },
+  "pasarela-femenil": { label: "🏀 Pasarela Femenil", desc: "Años 2013 - 2014" },
+  "pasarela-varonil": { label: "🏀 Pasarela Varonil", desc: "Años 2013 - 2014" },
+  "cadetes-femenil": { label: "👦 Cadetes Femenil", desc: "Años 2011 - 2012" },
+  "cadetes-varonil": { label: "👦 Cadetes Varonil", desc: "Años 2011 - 2012" },
+  "juvenil-femenil": { label: "👨 Juvenil Femenil", desc: "Años 2009 - 2010" },
+  "juvenil-varonil": { label: "👨 Juvenil Varonil", desc: "Años 2009 - 2010" },
+  "juvenil-superior-femenil": { label: "👨 Juvenil Superior Femenil", desc: "Años 2007 - 2008" },
+  "juvenil-superior-varonil": { label: "👨 Juvenil Superior Varonil", desc: "Años 2007 - 2008" },
+  "sub21-femenil": { label: "👨‍🎓 Sub 21 Femenil", desc: "Categoría Universitaria Desarrollo" },
+  "sub21-varonil": { label: "👨‍🎓 Sub 21 Varonil", desc: "Categoría Universitaria Desarrollo" },
+  "sub23-femenil": { label: "👨‍🎓 Sub 23 Femenil", desc: "Categoría Universitaria Avanzada" },
+  "sub23-varonil": { label: "👨‍🎓 Sub 23 Varonil", desc: "Categoría Universitaria Avanzada" }
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -261,7 +268,6 @@ function generateTableHtml(teamsArray) {
   return html + `</tbody></table></div>`;
 }
 
-// Handlers corregidos con enlace de mapas
 function renderMatchesByVenue() {
   const container = document.getElementById('venuesRolesContainer');
   if (!container) return;
@@ -272,7 +278,6 @@ function renderMatchesByVenue() {
   venuesArr.forEach(([venueId, venue]) => {
     const block = document.createElement('div');
     block.className = 'venue-role-block';
-    // AQUÍ SE RECUPERA EL ENLACE DE MAPS
     const mapsLink = venue.mapsUrl ? `<a href="${venue.mapsUrl}" target="_blank" style="color:var(--accent-orange); font-size:0.8rem; text-decoration:underline;">📍 Ver en Google Maps</a>` : '';
     
     block.innerHTML = `
