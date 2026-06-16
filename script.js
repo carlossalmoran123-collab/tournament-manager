@@ -25,10 +25,10 @@ let globalTeams = {};
 let globalVenues = {};
 let globalMatches = {};
 
-// Categorías Oficiales - ¡Chupon añadida hasta arriba con éxito!
+// Categorías Oficiales - Corrección en la descripción de Micro aplicada
 const categoriesConfig = {
   "chupon": { label: "🍼 Chupon", desc: "Iniciación y psicomotricidad básica (4-6 años)" },
-  "micro": { label: "👶 Micro", desc: "Años 2017 - 2018 y menores" },
+  "micro": { label: "👶 Micro", desc: "Años 2017 - 2018" },
   "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
   "pasarela": { label: "🏀 Pasarela", desc: "Años 2013 - 2014" },
   "cadetes": { label: "👦 Cadetes", desc: "Años 2011 - 2012" },
@@ -59,7 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('matchForm')?.addEventListener('submit', handleMatchSubmit);
   document.getElementById('eventForm')?.addEventListener('submit', handleEventSubmit);
 
-  // Escuchar cuando el admin cambie la categoría en el formulario de partidos para filtrar los equipos
   document.getElementById('matchCategory')?.addEventListener('change', updateFilteredTeamsDropdowns);
 
   initGlobalTournamentsObserver();
@@ -81,6 +80,10 @@ onAuthStateChanged(auth, (user) => {
     if (adminPanels) adminPanels.style.display = 'none';
   }
   renderCompetitionsSelector(); 
+  // Forzar repintado de categorías para activar/desactivar botones de eliminación según el rol
+  if (currentTournamentId) {
+    renderCategories();
+  }
 });
 
 function initGlobalTournamentsObserver() {
@@ -107,7 +110,7 @@ function attachTournamentRealtimeListeners(tournamentId) {
     document.getElementById('appTournamentFormat').innerText = data.format || "Formato Regular";
 
     populateStaticAdminDropdowns();
-    updateFilteredTeamsDropdowns(); // Filtra equipos según la categoría seleccionada por defecto
+    updateFilteredTeamsDropdowns();
     renderDashboard();
     renderCategories();
     renderMatchesByVenue();
@@ -227,10 +230,11 @@ function renderCategories() {
       teamsListHtml += '<li><span style="color:#aaa; font-style:italic;">Sin escuadras inscritas aún</span></li>';
     } else {
       filteredTeams.forEach(([teamId, t]) => {
+        // El botón 🗑️ se renderiza condicionalmente si isAdmin es true
         teamsListHtml += `
-          <li style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333;">
+          <li style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #333;">
             <span>🛡️ ${t.name}</span>
-            ${isAdmin ? `<button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background: transparent; border: none; color: #ff4444; cursor: pointer; font-size: 14px; padding: 2px 6px;">🗑️</button>` : ''}
+            ${isAdmin ? `<button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" class="btn-inline-delete" title="Eliminar equipo">🗑️</button>` : ''}
           </li>`;
       });
     }
@@ -252,7 +256,17 @@ function renderCategories() {
 
 function deleteTeamFromApp(teamId, teamName) {
   if (!currentTournamentId) return;
-  if (confirm(`¿Estás seguro de que deseas eliminar por completo al equipo "${teamName}"?`)) {
+  
+  // Validar si el equipo tiene partidos agendados antes de borrarlo para evitar romper los roles
+  const matchesArr = Object.values(globalMatches).filter(m => m);
+  const hasMatches = matchesArr.some(m => m.localId === teamId || m.visitorId === teamId);
+
+  if (hasMatches) {
+    alert(`⚠️ No se puede eliminar a "${teamName}" porque ya cuenta con partidos programados en el rol de juegos. Elimina primero sus partidos.`);
+    return;
+  }
+
+  if (confirm(`¿Estás seguro de que deseas eliminar por completo al equipo "${teamName}" de esta categoría?`)) {
     const teamRef = ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`);
     remove(teamRef)
       .then(() => alert(`🛡️ El equipo "${teamName}" fue removido exitosamente.`))
@@ -368,7 +382,6 @@ function deleteVenueFromApp(venueId, venueName) {
 }
 window.deleteVenueFromApp = deleteVenueFromApp;
 
-// Llena los desplegables estáticos
 function populateStaticAdminDropdowns() {
   const venueSel = document.getElementById('selectMatchVenue');
   const teamCatSel = document.getElementById('regTeamCategory');
@@ -388,7 +401,6 @@ function populateStaticAdminDropdowns() {
   }
 }
 
-// FILTRO ESTRICTO REALIZADO POR CATEGORÍA SELECCIONADA
 function updateFilteredTeamsDropdowns() {
   const matchCategorySelect = document.getElementById('matchCategory');
   const localSel = document.getElementById('selectLocal');
@@ -481,7 +493,6 @@ function handleMatchSubmit(e) {
   e.preventDefault();
   if (!currentTournamentId) return alert("⚠️ No has cargado ningún torneo.");
 
-  // Guardamos la categoría actual antes del reset para que no regrese a "chupon" automáticamente si el usuario estaba programando otra
   const matchCategorySelect = document.getElementById('matchCategory');
   const activeCategory = matchCategorySelect.value;
 
@@ -515,7 +526,6 @@ function handleMatchSubmit(e) {
     alert("📅 Partido indexado al rol.");
     document.getElementById('matchForm').reset();
     
-    // Restauramos la categoría seleccionada y refrescamos los selects filtrados
     matchCategorySelect.value = activeCategory;
     updateFilteredTeamsDropdowns(); 
   }).catch(err => alert("Error: " + err.message));

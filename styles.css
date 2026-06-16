@@ -380,6 +380,27 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 8px;
 }
 
+/* Botón de eliminación en línea para clubes dentro de categorías */
+.btn-inline-delete {
+  background: transparent;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-inline-delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  transform: scale(1.1);
+}
+
+.btn-inline-delete:active {
+  transform: scale(0.95);
+}
+
 /* ==========================================================================
    VISTA 3: ROLES DE JUEGOS (Por Sedes y Fechas)
    ========================================================================== */
