@@ -2,7 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// Configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw",
   authDomain: "torneos-basquetbol.firebaseapp.com",
@@ -66,17 +65,74 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('matchCategory')?.addEventListener('change', updateFilteredTeamsDropdowns);
   document.getElementById('classCategoryFilter')?.addEventListener('change', renderClassificationTables);
 
-  document.getElementById('scoreSelectMatch')?.addEventListener('change', (e) => {
-    const matchId = e.target.value;
-    if (matchId && globalMatches[matchId]) {
-      const match = globalMatches[matchId];
-      document.getElementById('labelLocalTeam').innerText = `Puntos ${match.localName}:`;
-      document.getElementById('labelVisitorTeam').innerText = `Puntos ${match.visitorName}:`;
+  initGlobalTournamentsObserver();
+});
+
+// --- LÓGICA DE TABLA (INTEGRADA) ---
+function renderClassificationTables() {
+  const container = document.getElementById('classificationTablesContainer');
+  const selectedCat = document.getElementById('classCategoryFilter')?.value;
+  if (!container || !selectedCat) return;
+  container.innerHTML = '';
+
+  const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
+  const stats = {};
+
+  Object.entries(globalTeams).forEach(([id, t]) => {
+    if (t && t.categoryRegistered === selectedCat) {
+      stats[id] = { name: t.name, group: t.groupAssigned || 'sin grupo', jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, dif: 0, pts: 0 };
     }
   });
 
-  initGlobalTournamentsObserver();
-});
+  Object.values(globalMatches).forEach(m => {
+    if (m && m.category === selectedCat && m.localScore !== undefined && m.visitorScore !== undefined) {
+      const locS = parseInt(m.localScore);
+      const visS = parseInt(m.visitorScore);
+      if(stats[m.localId] && stats[m.visitorId]) {
+        stats[m.localId].jj++; stats[m.visitorId].jj++;
+        stats[m.localId].pf += locS; stats[m.localId].pc += visS;
+        stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
+        if (locS > visS) { stats[m.localId].jg++; stats[m.localId].pts += 2; stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; }
+        else { stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; stats[m.localId].jp++; stats[m.localId].pts += 1; }
+      }
+    }
+  });
+  Object.keys(stats).forEach(id => { stats[id].dif = stats[id].pf - stats[id].pc; });
+
+  const sortTeams = (arr) => arr.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.pf - a.pf);
+  
+  if (formatConfig.type === 'grupos') {
+    const groupsMap = {};
+    Object.values(stats).forEach(t => { if (!groupsMap[t.group]) groupsMap[t.group] = []; groupsMap[t.group].push(t); });
+    
+    Object.keys(groupsMap).sort().forEach(groupName => {
+      const sorted = sortTeams(groupsMap[groupName]);
+      container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
+      
+      // LOGICA AGREGADA: Clasificados a semifinales
+      if (sorted.length >= 2) {
+        container.innerHTML += `
+          <div style="background:rgba(255, 107, 0, 0.1); padding:10px; margin-bottom:20px; border-left:4px solid #ff6b00; font-size:0.9rem;">
+            <strong>⚡ Clasificados a Semifinales (Grupo ${groupName.toUpperCase()}):</strong><br>
+            🏆 1er Lugar: ${sorted[0].name} | 🥈 2do Lugar: ${sorted[1].name}
+          </div>`;
+      }
+    });
+  } else {
+    container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
+  }
+}
+
+function generateTableHtml(teamsArray) {
+  if (teamsArray.length === 0) return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras en este sector.</p>';
+  let html = `<div style="overflow-x:auto; margin-bottom:25px;"><table class="classification-table" style="width:100%; border-collapse:collapse; background:var(--bg-card); border:1px solid var(--border-color); text-align:center;"><thead><tr style="background:#1e2530; color:#fff; border-bottom:2px solid var(--accent-orange);"><th style="padding:10px; text-align:left;">Pos / Club</th><th>JJ</th><th>JG</th><th>JP</th><th>PF</th><th>PC</th><th>DIF</th><th style="color:var(--accent-orange)">PTS</th></tr></thead><tbody>`;
+  teamsArray.forEach((t, index) => {
+    html += `<tr style="border-bottom:1px solid var(--border-color)"><td style="padding:10px; text-align:left;"><strong>${index + 1}.</strong> ${t.name}</td><td>${t.jj}</td><td>${t.jg}</td><td>${t.jp}</td><td>${t.pf}</td><td>${t.pc}</td><td style="color:${t.dif >= 0 ? '#10b981' : '#ef4444'}">${t.dif > 0 ? '+' : ''}${t.dif}</td><td style="font-weight:bold; color:var(--accent-orange);">${t.pts}</td></tr>`;
+  });
+  return html + `</tbody></table></div>`;
+}
+
+// --- FUNCIONES DE APOYO Y SISTEMA (Mantenidas intactas) ---
 
 onAuthStateChanged(auth, (user) => {
   isAdmin = !!user;
@@ -215,57 +271,6 @@ function populateScoreMatchesDropdown() {
     const statusText = (m.localScore !== undefined) ? ` 🕒 (Jugado: ${m.localScore}-${m.visitorScore})` : '';
     select.innerHTML += `<option value="${id}">${categoriesConfig[m.category]?.label || m.category} | ${m.localName} VS ${m.visitorName} - ${m.date}${statusText}</option>`;
   });
-}
-
-function renderClassificationTables() {
-  const container = document.getElementById('classificationTablesContainer');
-  const selectedCat = document.getElementById('classCategoryFilter')?.value;
-  if (!container || !selectedCat) return;
-  container.innerHTML = '';
-
-  const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
-  
-  const stats = {};
-  Object.entries(globalTeams).forEach(([id, t]) => {
-    if (t && t.categoryRegistered === selectedCat) {
-      stats[id] = { name: t.name, group: t.groupAssigned || 'sin grupo', jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, dif: 0, pts: 0 };
-    }
-  });
-
-  Object.values(globalMatches).forEach(m => {
-    if (m && m.category === selectedCat && m.localScore !== undefined && m.visitorScore !== undefined) {
-      const locS = parseInt(m.localScore);
-      const visS = parseInt(m.visitorScore);
-      if(stats[m.localId] && stats[m.visitorId]) {
-        stats[m.localId].jj++; stats[m.visitorId].jj++;
-        stats[m.localId].pf += locS; stats[m.localId].pc += visS;
-        stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
-        if (locS > visS) { stats[m.localId].jg++; stats[m.localId].pts += 2; stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; }
-        else { stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; stats[m.localId].jp++; stats[m.localId].pts += 1; }
-      }
-    }
-  });
-  Object.keys(stats).forEach(id => { stats[id].dif = stats[id].pf - stats[id].pc; });
-
-  const sortTeams = (arr) => arr.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.pf - a.pf);
-  if (formatConfig.type === 'grupos') {
-    const groupsMap = {};
-    Object.values(stats).forEach(t => { if (!groupsMap[t.group]) groupsMap[t.group] = []; groupsMap[t.group].push(t); });
-    Object.keys(groupsMap).sort().forEach(groupName => {
-      container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sortTeams(groupsMap[groupName]));
-    });
-  } else {
-    container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
-  }
-}
-
-function generateTableHtml(teamsArray) {
-  if (teamsArray.length === 0) return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras en este sector.</p>';
-  let html = `<div style="overflow-x:auto; margin-bottom:25px;"><table class="classification-table" style="width:100%; border-collapse:collapse; background:var(--bg-card); border:1px solid var(--border-color); text-align:center;"><thead><tr style="background:#1e2530; color:#fff; border-bottom:2px solid var(--accent-orange);"><th style="padding:10px; text-align:left;">Pos / Club</th><th>JJ</th><th>JG</th><th>JP</th><th>PF</th><th>PC</th><th>DIF</th><th style="color:var(--accent-orange)">PTS</th></tr></thead><tbody>`;
-  teamsArray.forEach((t, index) => {
-    html += `<tr style="border-bottom:1px solid var(--border-color)"><td style="padding:10px; text-align:left;"><strong>${index + 1}.</strong> ${t.name}</td><td>${t.jj}</td><td>${t.jg}</td><td>${t.jp}</td><td>${t.pf}</td><td>${t.pc}</td><td style="color:${t.dif >= 0 ? '#10b981' : '#ef4444'}">${t.dif > 0 ? '+' : ''}${t.dif}</td><td style="font-weight:bold; color:var(--accent-orange);">${t.pts}</td></tr>`;
-  });
-  return html + `</tbody></table></div>`;
 }
 
 function renderMatchesByVenue() {
