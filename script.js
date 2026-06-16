@@ -24,6 +24,7 @@ let globalTeams = {};
 let globalVenues = {};
 let globalMatches = {};
 
+// Configuración de categorías oficiales
 const categoriesConfig = {
   "micro": { label: "👶 Micro", desc: "Años 2017 - 2018 y menores" },
   "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
@@ -170,8 +171,8 @@ export function switchSection(sectionId, fromGlobalSelector = false) {
 window.switchSection = switchSection;
 
 function renderDashboard() {
-  const teamsArr = Object.values(globalTeams).filter(t => t.name);
-  const matchesArr = Object.values(globalMatches).filter(m => m.date);
+  const teamsArr = Object.values(globalTeams).filter(t => t && t.name);
+  const matchesArr = Object.values(globalMatches).filter(m => m && m.date);
 
   document.getElementById('dashTeamsCount').innerText = teamsArr.length;
   document.getElementById('dashMatchesCount').innerText = matchesArr.length;
@@ -207,9 +208,8 @@ function renderCategories() {
   if (!container) return;
   container.innerHTML = '';
 
-  const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t.name);
+  const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t && t.name);
 
-  // 1. Renderizar Categorías Estándar con botón de eliminar para Admin
   Object.keys(categoriesConfig).forEach(catKey => {
     const catInfo = categoriesConfig[catKey];
     const filteredTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === catKey);
@@ -244,7 +244,6 @@ function renderCategories() {
     container.appendChild(card);
   });
 
-  // 2. Apartado de Equipos en Espera con opción de Asignar y Eliminar
   const waitingTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === 'espera' || !t.categoryRegistered);
   
   const waitingCard = document.createElement('div');
@@ -313,7 +312,6 @@ function assignCategoryDirectly(teamId) {
 }
 window.assignCategoryDirectly = assignCategoryDirectly;
 
-// NUEVA FUNCIÓN: Eliminar Equipo del Torneo Activo
 function deleteTeamFromApp(teamId, teamName) {
   if (!currentTournamentId) return;
   if (confirm(`¿Estás seguro de que deseas eliminar por completo al equipo "${teamName}" de este torneo?`)) {
@@ -330,8 +328,8 @@ function renderMatchesByVenue() {
   if (!container) return;
   container.innerHTML = '';
 
-  const venuesArr = Object.entries(globalVenues).filter(([_, v]) => v.name);
-  const matchesArr = Object.entries(globalMatches).filter(([_, m]) => m.date);
+  const venuesArr = Object.entries(globalVenues).filter(([_, v]) => v && v.name);
+  const matchesArr = Object.entries(globalMatches).filter(([_, m]) => m && m.date);
 
   if (venuesArr.length === 0) {
     container.innerHTML = '<div class="welcome-card text-center"><p>No se han registrado canchas ni programación para este torneo.</p></div>';
@@ -343,8 +341,6 @@ function renderMatchesByVenue() {
     venueSection.className = 'venue-role-block';
 
     const mapsBtn = venue.mapsUrl ? `<a href="${venue.mapsUrl}" target="_blank" class="btn-maps-link">📍 Ver Ubicación en Maps</a>` : '';
-    
-    // MODIFICACIÓN: Inyección del botón "Eliminar Sede" si es Administrador
     const deleteVenueBtn = isAdmin ? `<button onclick="deleteVenueFromApp('${venueId}', '${venue.name}')" style="background:#ff4444; color:white; border:none; border-radius:4px; padding:6px 12px; font-size:12px; cursor:pointer; margin-top:8px; display:block;">🗑️ Eliminar Sede / Cancha</button>` : '';
 
     venueSection.innerHTML = `
@@ -414,12 +410,10 @@ function renderMatchesByVenue() {
   });
 }
 
-// NUEVA FUNCIÓN: Eliminar Sede del Torneo Activo (Previene errores si hay partidos)
 function deleteVenueFromApp(venueId, venueName) {
   if (!currentTournamentId) return;
 
-  // Verificar si la sede tiene partidos asignados vigentes
-  const matchesArr = Object.values(globalMatches);
+  const matchesArr = Object.values(globalMatches).filter(m => m);
   const totalMatchesInVenue = matchesArr.filter(m => m.venueId === venueId).length;
 
   if (totalMatchesInVenue > 0) {
@@ -449,7 +443,7 @@ function populateAdminDropdowns() {
   venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
 
   Object.entries(globalTeams).forEach(([id, t]) => {
-    if(!t.name || t.categoryRegistered === 'espera' || !t.categoryRegistered) return;
+    if(!t || !t.name || t.categoryRegistered === 'espera' || !t.categoryRegistered) return;
     const catInfo = categoriesConfig[t.categoryRegistered];
     const catBadge = catInfo ? catInfo.label : "S/C";
     localSel.innerHTML += `<option value="${id}">${t.name} (${catBadge})</option>`;
@@ -457,7 +451,7 @@ function populateAdminDropdowns() {
   });
 
   Object.entries(globalVenues).forEach(([id, v]) => {
-    if(v.name) venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
+    if(v && v.name) venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
   });
 
   if (teamCatSel) {
@@ -572,23 +566,31 @@ function handleEventSubmit(e) {
   const format = document.getElementById('competitionFormat').value;
   const description = document.getElementById('eventDescription').value.trim();
 
+  if (!name) {
+    alert("⚠️ El nombre del torneo es obligatorio.");
+    return;
+  }
+
   const rootTournamentsRef = ref(db, 'tournaments');
   const newTournamentRef = push(rootTournamentsRef);
 
   set(newTournamentRef, {
     name, 
-    location, 
+    location: location || "Por definir", 
     maxTeams: parseInt(maxTeams) || 20, 
     format, 
     description,
-    teams: { placeholder: true }, 
-    matches: { placeholder: true }, 
-    venues: { placeholder: true }
+    status: "active"
   }).then(() => {
-    alert("➕ ¡Nuevo Evento Maestro creado con éxito!");
+    alert("🏆 ¡Nuevo Evento Maestro creado con éxito!");
     document.getElementById('eventForm').reset();
-    document.getElementById('btnBackToSelector').click();
-  }).catch(err => alert("Error al crear evento: " + err.message));
+    
+    if (document.getElementById('btnBackToSelector')) {
+      document.getElementById('btnBackToSelector').click();
+    }
+  }).catch(err => {
+    alert("Error al crear el torneo: " + err.message);
+  });
 }
 
 function deleteMatchEvent(matchId) {
