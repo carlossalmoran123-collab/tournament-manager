@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw",
@@ -24,6 +24,7 @@ let globalTeams = {};
 let globalVenues = {};
 let globalMatches = {};
 
+// Configuración de categorías oficiales
 const categoriesConfig = {
   "micro": { label: "👶 Micro", desc: "Años 2017 - 2018 y menores" },
   "infantil": { label: "🧒 Infantil", desc: "Años 2015 - 2016" },
@@ -40,7 +41,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
   
-  // CORRECCIÓN: Fuerza la visibilidad del contenedor de la app al hacer clic
   document.getElementById('btnGoToAdminPrep')?.addEventListener('click', () => {
     switchSection('admin', true);
   });
@@ -48,6 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('btnBackToSelector')?.addEventListener('click', () => {
     document.getElementById('main-app-content').style.display = 'none';
     document.getElementById('competition-selector-screen').style.display = 'flex';
+    const navMenu = document.querySelector('nav');
+    if (navMenu) navMenu.style.display = 'block';
   });
 
   document.getElementById('teamForm')?.addEventListener('submit', handleTeamSubmit);
@@ -136,16 +138,27 @@ function loadSelectedTournamentContext() {
   currentTournamentId = id;
   attachTournamentRealtimeListeners(id);
 
+  const navMenu = document.querySelector('nav');
+  if (navMenu) navMenu.style.display = 'block';
+
   document.getElementById('competition-selector-screen').style.display = 'none';
   document.getElementById('main-app-content').style.display = 'block';
   switchSection('dashboard');
 }
 
-// CORRECCIÓN CRÍTICA: Ahora maneja explícitamente el bypass visual desde el selector
 export function switchSection(sectionId, fromGlobalSelector = false) {
+  const navMenu = document.querySelector('nav');
+  
   if (fromGlobalSelector) {
     document.getElementById('competition-selector-screen').style.display = 'none';
     document.getElementById('main-app-content').style.display = 'block';
+    
+    if (!currentTournamentId) {
+      if (navMenu) navMenu.style.display = 'none';
+      document.getElementById('appTournamentTitle').innerText = "Mesa de Control Global";
+      document.getElementById('appTournamentVenue').innerText = "Configuración Inicial";
+      document.getElementById('appTournamentFormat').innerText = "Ningún torneo cargado";
+    }
     sectionId = 'admin';
   }
 
@@ -158,8 +171,9 @@ export function switchSection(sectionId, fromGlobalSelector = false) {
 window.switchSection = switchSection;
 
 function renderDashboard() {
-  const teamsArr = Object.values(globalTeams);
-  const matchesArr = Object.values(globalMatches);
+  // Excluir el placeholder si existe al contar
+  const teamsArr = Object.values(globalTeams).filter(t => t.name);
+  const matchesArr = Object.values(globalMatches).filter(m => m.date);
 
   document.getElementById('dashTeamsCount').innerText = teamsArr.length;
   document.getElementById('dashMatchesCount').innerText = matchesArr.length;
@@ -175,7 +189,7 @@ function renderDashboard() {
 
   teamsArr.forEach(team => {
     const catInfo = categoriesConfig[team.categoryRegistered];
-    const catLabel = catInfo ? catInfo.label : "Sin Categoría";
+    const catLabel = catInfo ? catInfo.label : "⏳ Lista de Espera";
     const pill = document.createElement('div');
     pill.className = 'team-pill';
     const logoUrl = team.logoUrl || 'https://placehold.co/40x40/007bff/ffffff?text=🏀';
@@ -195,11 +209,12 @@ function renderCategories() {
   if (!container) return;
   container.innerHTML = '';
 
-  const teamsArr = Object.values(globalTeams);
+  const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t.name);
 
+  // 1. Renderizar Categorías Estándar
   Object.keys(categoriesConfig).forEach(catKey => {
     const catInfo = categoriesConfig[catKey];
-    const filteredTeams = teamsArr.filter(t => t.categoryRegistered === catKey);
+    const filteredTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === catKey);
 
     const card = document.createElement('div');
     card.className = 'category-card';
@@ -208,7 +223,7 @@ function renderCategories() {
     if (filteredTeams.length === 0) {
       teamsListHtml += '<li><span style="color:#aaa; font-style:italic;">Sin escuadras inscritas aún</span></li>';
     } else {
-      filteredTeams.forEach(t => {
+      filteredTeams.forEach(([_, t]) => {
         teamsListHtml += `<li>🛡️ ${t.name}</li>`;
       });
     }
@@ -226,15 +241,84 @@ function renderCategories() {
     `;
     container.appendChild(card);
   });
+
+  // 2. NUEVA TARJETA: Apartado de Equipos en Espera (Bolsa de Trabajo)
+  const waitingTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === 'espera' || !t.categoryRegistered);
+  
+  const waitingCard = document.createElement('div');
+  waitingCard.className = 'category-card';
+  waitingCard.style.border = '2px dashed #ff6b00';
+  waitingCard.style.background = '#1a1a24';
+
+  let waitingListHtml = '<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">';
+  
+  if (waitingTeams.length === 0) {
+    waitingListHtml += '<p style="color:#aaa; font-style:italic; padding: 5px;">No hay equipos en la banca de espera.</p>';
+  } else {
+    waitingTeams.forEach(([teamId, t]) => {
+      // Generar dinámicamente un selector de categorías rápidas
+      let optionsHtml = '<option value="">-- Asignar Categ. --</option>';
+      Object.entries(categoriesConfig).forEach(([key, val]) => {
+        optionsHtml += `<option value="${key}">${val.label}</option>`;
+      });
+
+      waitingListHtml += `
+        <div class="waiting-team-row" style="background:#252538; padding:8px 12px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <span style="font-weight:bold; color:#fff;">🛡️ ${t.name}</span>
+          ${isAdmin ? `
+            <div style="display:flex; gap:5px;">
+              <select id="quickAssign-${teamId}" style="background:#111; color:#fff; border:1px solid #444; border-radius:4px; padding:3px; font-size:12px;">
+                ${optionsHtml}
+              </select>
+              <button onclick="assignCategoryDirectly('${teamId}')" style="background:#ff6b00; color:white; border:none; border-radius:4px; padding:4px 8px; font-size:12px; cursor:pointer;">💾</button>
+            </div>
+          ` : '<span style="font-size:11px; color:#ff6b00; font-style:italic;">Pendiente</span>'}
+        </div>
+      `;
+    });
+  }
+  waitingListHtml += '</div>';
+
+  waitingCard.innerHTML = `
+    <div class="category-card-header" style="background: linear-gradient(135deg, #ff6b00, #b34a00);">
+      <h4>📥 Lista de Espera</h4>
+      <p>Equipos guardados sin una categoría definida aún.</p>
+    </div>
+    <div class="category-card-body">
+      <h5>Equipos en la banca (${waitingTeams.length}):</h5>
+      ${waitingListHtml}
+    </div>
+  `;
+  container.appendChild(waitingCard);
 }
+
+// FUNCIÓN GLOBAL ADICIONAL PARA ASIGNAR EN TIEMPO REAL
+function assignCategoryDirectly(teamId) {
+  if (!currentTournamentId) return;
+  const selectElement = document.getElementById(`quickAssign-${teamId}`);
+  const selectedCat = selectElement?.value;
+
+  if (!selectedCat || selectedCat === "") {
+    alert("Por favor selecciona una categoría válida antes de guardar.");
+    return;
+  }
+
+  const teamRef = ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`);
+  update(teamRef, { categoryRegistered: selectedCat })
+    .then(() => {
+      alert("✅ ¡Equipo incorporado a su categoría de manera exitosa!");
+    })
+    .catch(err => alert("Error al asignar: " + err.message));
+}
+window.assignCategoryDirectly = assignCategoryDirectly;
 
 function renderMatchesByVenue() {
   const container = document.getElementById('venuesRolesContainer');
   if (!container) return;
   container.innerHTML = '';
 
-  const venuesArr = Object.entries(globalVenues);
-  const matchesArr = Object.entries(globalMatches);
+  const venuesArr = Object.entries(globalVenues).filter(([_, v]) => v.name);
+  const matchesArr = Object.entries(globalMatches).filter(([_, m]) => m.date);
 
   if (venuesArr.length === 0) {
     container.innerHTML = '<div class="welcome-card text-center"><p>No se han registrado canchas ni programación para este torneo.</p></div>';
@@ -322,7 +406,9 @@ function populateAdminDropdowns() {
   visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
   venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
 
+  // Solo cargar en la creación de roles aquellos equipos que ya tengan una categoría asignada
   Object.entries(globalTeams).forEach(([id, t]) => {
+    if(!t.name || t.categoryRegistered === 'espera' || !t.categoryRegistered) return;
     const catInfo = categoriesConfig[t.categoryRegistered];
     const catBadge = catInfo ? catInfo.label : "S/C";
     localSel.innerHTML += `<option value="${id}">${t.name} (${catBadge})</option>`;
@@ -330,11 +416,12 @@ function populateAdminDropdowns() {
   });
 
   Object.entries(globalVenues).forEach(([id, v]) => {
-    venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
+    if(v.name) venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
   });
 
-  if (teamCatSel && teamCatSel.children.length <= 1) {
-    teamCatSel.innerHTML = '<option value="">-- Elige Categoría --</option>';
+  // Re-inyectar las opciones incluyendo la opción de "Lista de Espera"
+  if (teamCatSel) {
+    teamCatSel.innerHTML = '<option value="espera">📥 Dejar en lista de espera (Sin categoría)</option>';
     Object.entries(categoriesConfig).forEach(([key, value]) => {
       teamCatSel.innerHTML += `<option value="${key}">${value.label}</option>`;
     });
@@ -350,7 +437,7 @@ async function handleLoginSubmit(e) {
     await signInWithEmailAndPassword(auth, email, pass);
     alert("🔐 Acceso de Coach Concedido.");
     document.getElementById('loginForm').reset();
-    switchSection('admin');
+    switchSection('admin', !currentTournamentId);
   } catch (error) { 
     alert("Error de acceso: " + error.message); 
   }
@@ -360,31 +447,31 @@ async function handleLogout() {
   if (confirm("¿Seguro que deseas salir del modo administrador?")) {
     await signOut(auth);
     alert("Sesión protegida correctamente.");
-    switchSection('dashboard');
+    document.getElementById('btnBackToSelector').click();
   }
 }
 
 function handleTeamSubmit(e) {
   e.preventDefault();
-  if (!currentTournamentId) return alert("Selecciona un torneo primero.");
+  if (!currentTournamentId) return alert("⚠️ No has cargado ningún torneo.");
 
   const name = document.getElementById('regTeamName').value.trim();
   const logoUrl = document.getElementById('regTeamLogo').value.trim();
-  const categoryRegistered = document.getElementById('regTeamCategory')?.value || "micro"; 
+  const categoryRegistered = document.getElementById('regTeamCategory')?.value || "espera"; 
 
   const teamsRef = ref(db, `tournaments/${currentTournamentId}/teams`);
   const newTeamRef = push(teamsRef);
 
   set(newTeamRef, { name, logoUrl, categoryRegistered })
     .then(() => {
-      alert("🏆 Equipo guardado con éxito.");
+      alert(categoryRegistered === "espera" ? "📥 Guardado en la Lista de Espera temporal." : "🏆 Equipo guardado con éxito.");
       document.getElementById('teamForm').reset();
     }).catch(err => alert("Error: " + err.message));
 }
 
 function handleVenueSubmit(e) {
   e.preventDefault();
-  if (!currentTournamentId) return alert("Selecciona un torneo primero.");
+  if (!currentTournamentId) return alert("⚠️ No has cargado ningún torneo.");
 
   const name = document.getElementById('venueName').value.trim();
   const address = document.getElementById('venueAddress').value.trim();
@@ -402,7 +489,7 @@ function handleVenueSubmit(e) {
 
 function handleMatchSubmit(e) {
   e.preventDefault();
-  if (!currentTournamentId) return alert("Selecciona un torneo primero.");
+  if (!currentTournamentId) return alert("⚠️ No has cargado ningún torneo.");
 
   const category = document.getElementById('matchCategory').value;
   const localId = document.getElementById('selectLocal').value;
@@ -411,6 +498,11 @@ function handleMatchSubmit(e) {
   const startTime = document.getElementById('matchStartTime').value;
   const endTime = document.getElementById('matchEndTime').value;
   const venueId = document.getElementById('selectMatchVenue').value;
+
+  if (!localId || !visitorId) {
+    alert("⚠️ Debes elegir dos equipos asignados para programar.");
+    return;
+  }
 
   if (localId === visitorId) {
     alert("⚠️ Un equipo no puede jugar contra sí mismo.");
@@ -444,12 +536,19 @@ function handleEventSubmit(e) {
   const newTournamentRef = push(rootTournamentsRef);
 
   set(newTournamentRef, {
-    name, location, maxTeams, format, description,
-    teams: {}, matches: {}, venues: {}
+    name, 
+    location, 
+    maxTeams: parseInt(maxTeams) || 20, 
+    format, 
+    description,
+    teams: { placeholder: true }, 
+    matches: { placeholder: true }, 
+    venues: { placeholder: true }
   }).then(() => {
-    alert("➕ ¡Nuevo Evento Maestro creado!");
+    alert("➕ ¡Nuevo Evento Maestro creado con éxito!");
     document.getElementById('eventForm').reset();
-  }).catch(err => alert("Error: " + err.message));
+    document.getElementById('btnBackToSelector').click();
+  }).catch(err => alert("Error al crear evento: " + err.message));
 }
 
 function deleteMatchEvent(matchId) {
