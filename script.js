@@ -68,60 +68,56 @@ document.addEventListener("DOMContentLoaded", () => {
   initGlobalTournamentsObserver();
 });
 
-// --- LÓGICA DE TABLA ---
 function renderClassificationTables() {
-  const container = document.getElementById('classificationTablesContainer');
-  const selectedCat = document.getElementById('classCategoryFilter')?.value;
-  if (!container || !selectedCat) return;
-  container.innerHTML = '';
+    const container = document.getElementById('classificationTablesContainer');
+    const selectedCat = document.getElementById('classCategoryFilter')?.value;
+    if (!container) return;
 
-  const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
-  const stats = {};
-  const filterVal = selectedCat.trim();
-
-  Object.entries(globalTeams).forEach(([id, t]) => {
-    const teamCat = (t.categoryRegistered || "").trim();
-    
-    // --- DEBUG: ESTO TE DIRÁ POR QUÉ NO APARECEN ---
-    console.log(`DEBUG FILTER [${t.name}]: EquipoCat="${teamCat}" vs Filtro="${filterVal}" | Coincide: ${teamCat === filterVal}`);
-
-    if (t && teamCat === filterVal) {
-      stats[id] = { name: t.name, group: t.groupAssigned || 'sin grupo', jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, dif: 0, pts: 0 };
+    if (!selectedCat) {
+        container.innerHTML = '<p style="padding:15px; color:#aaa;">Selecciona una categoría para ver la tabla.</p>';
+        return;
     }
-  });
 
-  Object.values(globalMatches).forEach(m => {
-    if (m && (m.category || "").trim() === filterVal && m.localScore !== undefined && m.visitorScore !== undefined) {
-      const locS = parseInt(m.localScore);
-      const visS = parseInt(m.visitorScore);
-      if(stats[m.localId] && stats[m.visitorId]) {
-        stats[m.localId].jj++; stats[m.visitorId].jj++;
-        stats[m.localId].pf += locS; stats[m.localId].pc += visS;
-        stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
-        if (locS > visS) { stats[m.localId].jg++; stats[m.localId].pts += 2; stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; }
-        else { stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; stats[m.localId].jp++; stats[m.localId].pts += 1; }
-      }
-    }
-  });
-  Object.keys(stats).forEach(id => { stats[id].dif = stats[id].pf - stats[id].pc; });
+    container.innerHTML = '';
+    const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
+    const stats = {};
+    const filterVal = selectedCat.trim();
 
-  const sortTeams = (arr) => arr.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.pf - a.pf);
-  
-  if (formatConfig.type === 'grupos') {
-    const groupsMap = {};
-    Object.values(stats).forEach(t => { if (!groupsMap[t.group]) groupsMap[t.group] = []; groupsMap[t.group].push(t); });
-    Object.keys(groupsMap).sort().forEach(groupName => {
-      const sorted = sortTeams(groupsMap[groupName]);
-      container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
-      if (sorted.length >= 2) {
-        container.innerHTML += `<div style="background:rgba(255, 107, 0, 0.1); padding:10px; margin-bottom:20px; border-left:4px solid #ff6b00; font-size:0.9rem;"><strong>⚡ Clasificados a Semifinales (Grupo ${groupName.toUpperCase()}):</strong><br>🏆 1er Lugar: ${sorted[0].name} | 🥈 2do Lugar: ${sorted[1].name}</div>`;
-      }
+    Object.entries(globalTeams).forEach(([id, t]) => {
+        const teamCat = (t.categoryRegistered || "").trim();
+        if (t && teamCat === filterVal) {
+            stats[id] = { name: t.name, group: t.groupAssigned || 'sin grupo', jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, dif: 0, pts: 0 };
+        }
     });
-  } else {
-    container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat]?.label || selectedCat}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
-  }
-}
 
+    Object.values(globalMatches).forEach(m => {
+        if (m && (m.category || "").trim() === filterVal && m.localScore !== undefined && m.visitorScore !== undefined) {
+            const locS = parseInt(m.localScore);
+            const visS = parseInt(m.visitorScore);
+            if(stats[m.localId] && stats[m.visitorId]) {
+                stats[m.localId].jj++; stats[m.visitorId].jj++;
+                stats[m.localId].pf += locS; stats[m.localId].pc += visS;
+                stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
+                if (locS > visS) { stats[m.localId].jg++; stats[m.localId].pts += 2; stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; }
+                else { stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; stats[m.localId].jp++; stats[m.localId].pts += 1; }
+            }
+        }
+    });
+    Object.keys(stats).forEach(id => { stats[id].dif = stats[id].pf - stats[id].pc; });
+
+    const sortTeams = (arr) => arr.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.pf - a.pf);
+    
+    if (formatConfig.type === 'grupos') {
+        const groupsMap = {};
+        Object.values(stats).forEach(t => { if (!groupsMap[t.group]) groupsMap[t.group] = []; groupsMap[t.group].push(t); });
+        Object.keys(groupsMap).sort().forEach(groupName => {
+            const sorted = sortTeams(groupsMap[groupName]);
+            container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
+        });
+    } else {
+        container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat]?.label || selectedCat}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
+    }
+}
 function generateTableHtml(teamsArray) {
   if (teamsArray.length === 0) return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras en este sector.</p>';
   let html = `<div style="overflow-x:auto; margin-bottom:25px;"><table class="classification-table" style="width:100%; border-collapse:collapse; background:var(--bg-card); border:1px solid var(--border-color); text-align:center;"><thead><tr style="background:#1e2530; color:#fff; border-bottom:2px solid var(--accent-orange);"><th style="padding:10px; text-align:left;">Pos / Club</th><th>JJ</th><th>JG</th><th>JP</th><th>PF</th><th>PC</th><th>DIF</th><th style="color:var(--accent-orange)">PTS</th></tr></thead><tbody>`;
@@ -157,26 +153,33 @@ function initGlobalTournamentsObserver() {
 }
 
 function attachTournamentRealtimeListeners(tournamentId) {
-  onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
-    const data = snapshot.val();
-    if (!data) return;
-    currentTournamentData = data;
-    globalTeams = data.teams || {};
-    globalVenues = data.venues || {};
-    globalMatches = data.matches || {};
-    globalFormats = data.formats || {};
+    // Escucha en tiempo real sobre la rama de ese torneo específico
+    onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
+        const data = snapshot.val();
+        if (!data) {
+            console.warn("No se encontraron datos para este ID de torneo");
+            return;
+        }
 
-    document.getElementById('appTournamentTitle').innerText = data.name || "Torneo Activo";
-    document.getElementById('appTournamentVenue').innerText = data.location || "Sede General";
-    document.getElementById('appTournamentFormat').innerText = data.format || "Formato Regular";
+        // Actualizamos las variables globales
+        globalTeams = data.teams || {};
+        globalVenues = data.venues || {};
+        globalMatches = data.matches || {};
+        globalFormats = data.formats || {};
 
-    populateStaticAdminDropdowns();
-    updateFilteredTeamsDropdowns();
-    populateScoreMatchesDropdown();
-    renderCategories();
-    renderMatchesByVenue();
-    renderClassificationTables();
-  });
+        console.log("✅ Datos recibidos. Equipos cargados:", Object.keys(globalTeams).length);
+
+        // Actualizamos los contadores visuales (los números 0 que ves en pantalla)
+        document.getElementById('clubCountDisplay').innerText = Object.keys(globalTeams).length;
+        document.getElementById('matchCountDisplay').innerText = Object.keys(globalMatches).length;
+
+        // Forzamos el redibujado de todas las vistas
+        renderCategories();
+        renderMatchesByVenue();
+        renderClassificationTables();
+        
+        console.log("🎨 Vistas actualizadas.");
+    });
 }
 
 function renderCompetitionsSelector() {
