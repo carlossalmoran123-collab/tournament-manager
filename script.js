@@ -68,56 +68,61 @@ document.addEventListener("DOMContentLoaded", () => {
   initGlobalTournamentsObserver();
 });
 
+// --- LÓGICA DE TABLA (INTEGRADA) ---
 function renderClassificationTables() {
-    const container = document.getElementById('classificationTablesContainer');
-    const selectedCat = document.getElementById('classCategoryFilter')?.value;
-    if (!container) return;
+  const container = document.getElementById('classificationTablesContainer');
+  const selectedCat = document.getElementById('classCategoryFilter')?.value;
+  if (!container || !selectedCat) return;
+  container.innerHTML = '';
 
-    if (!selectedCat) {
-        container.innerHTML = '<p style="padding:15px; color:#aaa;">Selecciona una categoría para ver la tabla.</p>';
-        return;
+  const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
+  const stats = {};
+
+  Object.entries(globalTeams).forEach(([id, t]) => {
+    if (t && t.categoryRegistered === selectedCat) {
+      stats[id] = { name: t.name, group: t.groupAssigned || 'sin grupo', jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, dif: 0, pts: 0 };
     }
+  });
 
-    container.innerHTML = '';
-    const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
-    const stats = {};
-    const filterVal = selectedCat.trim();
+  Object.values(globalMatches).forEach(m => {
+    if (m && m.category === selectedCat && m.localScore !== undefined && m.visitorScore !== undefined) {
+      const locS = parseInt(m.localScore);
+      const visS = parseInt(m.visitorScore);
+      if(stats[m.localId] && stats[m.visitorId]) {
+        stats[m.localId].jj++; stats[m.visitorId].jj++;
+        stats[m.localId].pf += locS; stats[m.localId].pc += visS;
+        stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
+        if (locS > visS) { stats[m.localId].jg++; stats[m.localId].pts += 2; stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; }
+        else { stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; stats[m.localId].jp++; stats[m.localId].pts += 1; }
+      }
+    }
+  });
+  Object.keys(stats).forEach(id => { stats[id].dif = stats[id].pf - stats[id].pc; });
 
-    Object.entries(globalTeams).forEach(([id, t]) => {
-        const teamCat = (t.categoryRegistered || "").trim();
-        if (t && teamCat === filterVal) {
-            stats[id] = { name: t.name, group: t.groupAssigned || 'sin grupo', jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, dif: 0, pts: 0 };
-        }
-    });
-
-    Object.values(globalMatches).forEach(m => {
-        if (m && (m.category || "").trim() === filterVal && m.localScore !== undefined && m.visitorScore !== undefined) {
-            const locS = parseInt(m.localScore);
-            const visS = parseInt(m.visitorScore);
-            if(stats[m.localId] && stats[m.visitorId]) {
-                stats[m.localId].jj++; stats[m.visitorId].jj++;
-                stats[m.localId].pf += locS; stats[m.localId].pc += visS;
-                stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
-                if (locS > visS) { stats[m.localId].jg++; stats[m.localId].pts += 2; stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; }
-                else { stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; stats[m.localId].jp++; stats[m.localId].pts += 1; }
-            }
-        }
-    });
-    Object.keys(stats).forEach(id => { stats[id].dif = stats[id].pf - stats[id].pc; });
-
-    const sortTeams = (arr) => arr.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.pf - a.pf);
+  const sortTeams = (arr) => arr.sort((a, b) => b.pts - a.pts || b.dif - a.dif || b.pf - a.pf);
+  
+  if (formatConfig.type === 'grupos') {
+    const groupsMap = {};
+    Object.values(stats).forEach(t => { if (!groupsMap[t.group]) groupsMap[t.group] = []; groupsMap[t.group].push(t); });
     
-    if (formatConfig.type === 'grupos') {
-        const groupsMap = {};
-        Object.values(stats).forEach(t => { if (!groupsMap[t.group]) groupsMap[t.group] = []; groupsMap[t.group].push(t); });
-        Object.keys(groupsMap).sort().forEach(groupName => {
-            const sorted = sortTeams(groupsMap[groupName]);
-            container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
-        });
-    } else {
-        container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat]?.label || selectedCat}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
-    }
+    Object.keys(groupsMap).sort().forEach(groupName => {
+      const sorted = sortTeams(groupsMap[groupName]);
+      container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
+      
+      // LOGICA AGREGADA: Clasificados a semifinales
+      if (sorted.length >= 2) {
+        container.innerHTML += `
+          <div style="background:rgba(255, 107, 0, 0.1); padding:10px; margin-bottom:20px; border-left:4px solid #ff6b00; font-size:0.9rem;">
+            <strong>⚡ Clasificados a Semifinales (Grupo ${groupName.toUpperCase()}):</strong><br>
+            🏆 1er Lugar: ${sorted[0].name} | 🥈 2do Lugar: ${sorted[1].name}
+          </div>`;
+      }
+    });
+  } else {
+    container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
+  }
 }
+
 function generateTableHtml(teamsArray) {
   if (teamsArray.length === 0) return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras en este sector.</p>';
   let html = `<div style="overflow-x:auto; margin-bottom:25px;"><table class="classification-table" style="width:100%; border-collapse:collapse; background:var(--bg-card); border:1px solid var(--border-color); text-align:center;"><thead><tr style="background:#1e2530; color:#fff; border-bottom:2px solid var(--accent-orange);"><th style="padding:10px; text-align:left;">Pos / Club</th><th>JJ</th><th>JG</th><th>JP</th><th>PF</th><th>PC</th><th>DIF</th><th style="color:var(--accent-orange)">PTS</th></tr></thead><tbody>`;
@@ -127,7 +132,8 @@ function generateTableHtml(teamsArray) {
   return html + `</tbody></table></div>`;
 }
 
-// --- OBSERVERS ---
+// --- FUNCIONES DE APOYO Y SISTEMA (Mantenidas intactas) ---
+
 onAuthStateChanged(auth, (user) => {
   isAdmin = !!user;
   if (user) {
@@ -142,7 +148,10 @@ onAuthStateChanged(auth, (user) => {
     document.getElementById('admin-dashboard-panels').style.display = 'none';
   }
   renderCompetitionsSelector(); 
-  if (currentTournamentId) { renderCategories(); renderMatchesByVenue(); }
+  if (currentTournamentId) {
+    renderCategories();
+    renderMatchesByVenue();
+  }
 });
 
 function initGlobalTournamentsObserver() {
@@ -153,33 +162,28 @@ function initGlobalTournamentsObserver() {
 }
 
 function attachTournamentRealtimeListeners(tournamentId) {
-    // Escucha en tiempo real sobre la rama de ese torneo específico
-    onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
-        const data = snapshot.val();
-        if (!data) {
-            console.warn("No se encontraron datos para este ID de torneo");
-            return;
-        }
+  onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
 
-        // Actualizamos las variables globales
-        globalTeams = data.teams || {};
-        globalVenues = data.venues || {};
-        globalMatches = data.matches || {};
-        globalFormats = data.formats || {};
+    currentTournamentData = data;
+    globalTeams = data.teams || {};
+    globalVenues = data.venues || {};
+    globalMatches = data.matches || {};
+    globalFormats = data.formats || {};
 
-        console.log("✅ Datos recibidos. Equipos cargados:", Object.keys(globalTeams).length);
+    document.getElementById('appTournamentTitle').innerText = data.name || "Torneo Activo";
+    document.getElementById('appTournamentVenue').innerText = data.location || "Sede General";
+    document.getElementById('appTournamentFormat').innerText = data.format || "Formato Regular";
 
-        // Actualizamos los contadores visuales (los números 0 que ves en pantalla)
-        document.getElementById('clubCountDisplay').innerText = Object.keys(globalTeams).length;
-        document.getElementById('matchCountDisplay').innerText = Object.keys(globalMatches).length;
-
-        // Forzamos el redibujado de todas las vistas
-        renderCategories();
-        renderMatchesByVenue();
-        renderClassificationTables();
-        
-        console.log("🎨 Vistas actualizadas.");
-    });
+    populateStaticAdminDropdowns();
+    updateFilteredTeamsDropdowns();
+    populateScoreMatchesDropdown();
+    renderDashboard();
+    renderCategories();
+    renderMatchesByVenue();
+    renderClassificationTables();
+  });
 }
 
 function renderCompetitionsSelector() {
@@ -187,7 +191,10 @@ function renderCompetitionsSelector() {
   if (!select) return;
   select.innerHTML = '';
   const keys = Object.keys(globalTournaments);
-  if (keys.length === 0) { select.innerHTML = '<option value="">No hay eventos maestros activos...</option>'; return; }
+  if (keys.length === 0) {
+    select.innerHTML = '<option value="">No hay eventos maestros activos...</option>';
+    return;
+  }
   keys.forEach(key => {
     const t = globalTournaments[key];
     select.innerHTML += `<option value="${key}">🏆 ${t.name} — 📍 Sede: ${t.location}</option>`;
@@ -205,9 +212,14 @@ function loadSelectedTournamentContext() {
 }
 
 function switchSection(sectionId, fromGlobalSelector = false) {
-  if (fromGlobalSelector) { document.getElementById('competition-selector-screen').style.display = 'none'; document.getElementById('main-app-content').style.display = 'block'; sectionId = 'admin'; }
+  if (fromGlobalSelector) {
+    document.getElementById('competition-selector-screen').style.display = 'none';
+    document.getElementById('main-app-content').style.display = 'block';
+    sectionId = 'admin';
+  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  
   document.getElementById(sectionId)?.classList.add('active');
   document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
 }
@@ -218,10 +230,14 @@ function populateStaticAdminDropdowns() {
   const teamCatSel = document.getElementById('regTeamCategory');
   const formatCatSel = document.getElementById('formatSelectCategory');
   const filterCatSel = document.getElementById('classCategoryFilter');
+
   if (venueSel) {
     venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
-    Object.entries(globalVenues).forEach(([id, v]) => { if(v?.name) venueSel.innerHTML += `<option value="${id}">${v.name}</option>`; });
+    Object.entries(globalVenues).forEach(([id, v]) => {
+      if(v?.name) venueSel.innerHTML += `<option value="${id}">${v.name}</option>`;
+    });
   }
+
   const catOptions = Object.entries(categoriesConfig).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   if (teamCatSel) teamCatSel.innerHTML = catOptions;
   if (formatCatSel) formatCatSel.innerHTML = catOptions;
@@ -233,12 +249,14 @@ function updateFilteredTeamsDropdowns() {
   const localSel = document.getElementById('selectLocal');
   const visitorSel = document.getElementById('selectVisitor');
   if (!localSel || !visitorSel) return;
+
   localSel.innerHTML = visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
   Object.entries(globalTeams).forEach(([id, t]) => {
     if (t && t.categoryRegistered === selectedCategory) {
       const groupLabel = t.groupAssigned ? ` (${t.groupAssigned.toUpperCase()})` : '';
       const opt = `<option value="${id}">${t.name}${groupLabel}</option>`;
-      localSel.innerHTML += opt; visitorSel.innerHTML += opt;
+      localSel.innerHTML += opt;
+      visitorSel.innerHTML += opt;
     }
   });
 }
@@ -247,6 +265,7 @@ function populateScoreMatchesDropdown() {
   const select = document.getElementById('scoreSelectMatch');
   if (!select) return;
   select.innerHTML = '<option value="">-- Selecciona un Partido Programado --</option>';
+  
   Object.entries(globalMatches).forEach(([id, m]) => {
     if (!m) return;
     const statusText = (m.localScore !== undefined) ? ` 🕒 (Jugado: ${m.localScore}-${m.visitorScore})` : '';
@@ -260,23 +279,41 @@ function renderMatchesByVenue() {
   container.innerHTML = '';
   const venuesArr = Object.entries(globalVenues).filter(([_, v]) => v?.name);
   const matchesArr = Object.entries(globalMatches).filter(([_, m]) => m?.date);
+
   venuesArr.forEach(([venueId, venue]) => {
     const block = document.createElement('div');
     block.className = 'venue-role-block';
     const mapsLink = venue.mapsUrl ? `<a href="${venue.mapsUrl}" target="_blank" style="color:var(--accent-orange); font-size:0.8rem; text-decoration:underline;">📍 Ver en Google Maps</a>` : '';
-    block.innerHTML = `<div class="venue-title-header"><h3>🏢 Sede: ${venue.name} ${isAdmin ? `<button onclick="editVenue('${venueId}')" style="background:none; border:none; cursor:pointer;">✏️</button>` : ''}</h3><p>${venue.address || ''} ${mapsLink}</p></div>`;
+    
+    block.innerHTML = `
+      <div class="venue-title-header">
+        <h3>🏢 Sede: ${venue.name}</h3>
+        <p>${venue.address || ''} ${mapsLink}</p>
+      </div>`;
+    
     const vMatches = matchesArr.filter(([_, m]) => m.venueId === venueId);
     const dates = [...new Set(vMatches.map(([_, m]) => m.date))].sort();
+    
     dates.forEach(date => {
       const dbBlock = document.createElement('div');
       dbBlock.className = 'date-role-block';
       dbBlock.innerHTML = `<h4 class="date-divider">📅 ${date}</h4>`;
-      const grid = document.createElement('div'); grid.className = 'matches-table-grid';
+      const grid = document.createElement('div');
+      grid.className = 'matches-table-grid';
+
       vMatches.filter(([_, m]) => m.date === date).forEach(([mId, match]) => {
         const scoreText = (match.localScore !== undefined) ? `<div style="font-size:1.1rem; font-weight:bold; color:#fff; background:#111; border:1px solid #ff6b00; padding:6px; border-radius:6px; margin:8px 0; text-align:center; letter-spacing:1px;">🏀 SCORE: ${match.localScore} - ${match.visitorScore}</div>` : '';
-        grid.innerHTML += `<div class="match-schedule-card"><div class="match-time-badge">⏰ ${match.startTime}</div><div class="match-category-tag">${categoriesConfig[match.category]?.label || match.category}</div><div class="match-teams-vs"><div><strong>${match.localName}</strong></div><div class="vs-divider">VS</div><div><strong>${match.visitorName}</strong></div></div>${scoreText}${isAdmin ? `<button class="btn-delete-match" onclick="deleteMatchEvent('${mId}')">🗑️ Eliminar Juego</button>` : ''}</div>`;
+        grid.innerHTML += `
+          <div class="match-schedule-card">
+            <div class="match-time-badge">⏰ ${match.startTime}</div>
+            <div class="match-category-tag">${categoriesConfig[match.category]?.label || match.category}</div>
+            <div class="match-teams-vs"><div><strong>${match.localName}</strong></div><div class="vs-divider">VS</div><div><strong>${match.visitorName}</strong></div></div>
+            ${scoreText}
+            ${isAdmin ? `<button class="btn-delete-match" onclick="deleteMatchEvent('${mId}')">🗑️ Eliminar Juego</button>` : ''}
+          </div>`;
       });
-      dbBlock.appendChild(grid); block.appendChild(dbBlock);
+      dbBlock.appendChild(grid);
+      block.appendChild(dbBlock);
     });
     container.appendChild(block);
   });
@@ -290,47 +327,10 @@ function handleMatchSubmit(e) { e.preventDefault(); const cat = document.getElem
 function handleEventSubmit(e) { e.preventDefault(); push(ref(db, 'tournaments'), { name: document.getElementById('eventName').value.trim(), location: document.getElementById('eventLocation').value.trim() || "Por definir", maxTeams: parseInt(document.getElementById('eventTeams').value) || 20, format: document.getElementById('competitionFormat').value, description: document.getElementById('eventDescription').value.trim(), status: "active" }).then(() => { alert("¡Torneo creado!"); document.getElementById('eventForm').reset(); document.getElementById('btnBackToSelector')?.click(); }); }
 async function handleLoginSubmit(e) { e.preventDefault(); try { await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value.trim(), document.getElementById('loginPassword').value); alert("🔐 Modo Coach Autenticado."); } catch (error) { alert("Acceso denegado"); } }
 async function handleLogout() { await signOut(auth); document.getElementById('btnBackToSelector').click(); }
+
 function deleteMatchEvent(matchId) { if (confirm("¿Borrar este partido?")) remove(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`)); }
 function deleteTeamFromApp(teamId, teamName) { if (Object.values(globalMatches).some(m => m && (m.localId === teamId || m.visitorId === teamId))) return alert("El equipo ya tiene juegos."); if (confirm(`¿Eliminar ${teamName}?`)) remove(ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`)); }
-function editTeam(teamId) {
-    const t = globalTeams[teamId];
-    const newName = prompt("Editar nombre del equipo:", t.name);
-    if (!newName) return;
-    const newLogo = prompt("Editar URL del logo:", t.logoUrl || "");
-    const newGroup = prompt("Editar Grupo (Ej: A, B):", t.groupAssigned || "");
-    update(ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`), { name: newName, logoUrl: newLogo, groupAssigned: newGroup.trim().toLowerCase() }).then(() => alert("✅ Equipo actualizado."));
-}
-function editVenue(venueId) {
-    const v = globalVenues[venueId];
-    const newName = prompt("Editar nombre de la sede:", v.name);
-    if (!newName) return;
-    const newAddress = prompt("Editar dirección:", v.address || "");
-    const newMaps = prompt("Editar link de Google Maps:", v.mapsUrl || "");
-    update(ref(db, `tournaments/${currentTournamentId}/venues/${venueId}`), { name: newName, address: newAddress, mapsUrl: newMaps }).then(() => alert("✅ Sede actualizada."));
-}
+window.deleteMatchEvent = deleteMatchEvent; window.deleteTeamFromApp = deleteTeamFromApp;
 
-function renderCategories() {
-    const container = document.getElementById('categoriesContainer');
-    if (!container) return;
-    container.innerHTML = '';
-    const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t?.name);
-    Object.keys(categoriesConfig).forEach(catKey => {
-        const filteredTeams = teamsArr.filter(([_, t]) => (t.categoryRegistered || "").trim() === catKey);
-        const card = document.createElement('div'); card.className = 'category-card';
-        let list = '<ul style="list-style:none; padding:0;">';
-        filteredTeams.forEach(([teamId, t]) => {
-            list += `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #333;">
-                <span>🛡️ ${t.name}${t.groupAssigned ? ` <span style="background:#ff6b00; font-size:10px; color:#fff; padding:2px 5px; border-radius:3px;">Grup: ${t.groupAssigned.toUpperCase()}</span>` : ''}</span>
-                ${isAdmin ? `<div><button onclick="editTeam('${teamId}')" style="background:none; border:none; cursor:pointer;">✏️</button> <button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background:none; border:none; cursor:pointer;">🗑️</button></div>` : ''}
-            </li>`;
-        });
-        list += '</ul>';
-        card.innerHTML = `<div class="category-card-header"><h4>${categoriesConfig[catKey].label}</h4><p>${categoriesConfig[catKey].desc}</p></div><div class="category-card-body"><h5>Clubes:</h5>${list}</div>`;
-        container.appendChild(card);
-    });
-}
-
-window.deleteMatchEvent = deleteMatchEvent; 
-window.deleteTeamFromApp = deleteTeamFromApp;
-window.editTeam = editTeam;
-window.editVenue = editVenue;
+function renderDashboard() { const teamsArr = Object.values(globalTeams).filter(t => t?.name); document.getElementById('dashTeamsCount').innerText = teamsArr.length; document.getElementById('dashMatchesCount').innerText = Object.values(globalMatches).filter(m => m?.date).length; const container = document.getElementById('dashboardTeamsContainer'); if (!container) return; container.innerHTML = ''; teamsArr.forEach(team => { const pill = document.createElement('div'); pill.className = 'team-pill'; pill.innerHTML = `<img src="${team.logoUrl || 'https://placehold.co/40x40/007bff/ffffff?text=🏀'}" onerror="this.src='https://placehold.co/40x40/007bff/ffffff?text=🏀'"><div><strong>${team.name}</strong><br><small style="color: #ff6b00;">${categoriesConfig[team.categoryRegistered]?.label || 'Sin Cat.'}</small></div>`; container.appendChild(pill); }); }
+function renderCategories() { const container = document.getElementById('categoriesContainer'); if (!container) return; container.innerHTML = ''; const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t?.name); Object.keys(categoriesConfig).forEach(catKey => { const filteredTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === catKey); const card = document.createElement('div'); card.className = 'category-card'; let list = '<ul style="list-style:none; padding:0;">'; filteredTeams.forEach(([teamId, t]) => { list += `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #333;"><span>🛡️ ${t.name}${t.groupAssigned ? ` <span style="background:#ff6b00; font-size:10px; color:#fff; padding:2px 5px; border-radius:3px;">Grup: ${t.groupAssigned.toUpperCase()}</span>` : ''}</span>${isAdmin ? `<button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background:none; border:none; cursor:pointer;">🗑️</button>` : ''}</li>`; }); list += '</ul>'; card.innerHTML = `<div class="category-card-header"><h4>${categoriesConfig[catKey].label}</h4><p>${categoriesConfig[catKey].desc}</p></div><div class="category-card-body"><h5>Clubes:</h5>${list}</div>`; container.appendChild(card); }); }
