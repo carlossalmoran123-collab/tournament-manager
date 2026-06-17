@@ -65,6 +65,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('matchCategory')?.addEventListener('change', updateFilteredTeamsDropdowns);
   document.getElementById('classCategoryFilter')?.addEventListener('change', renderClassificationTables);
 
+  // ✅ AGREGADO: Listeners para el nuevo formulario de Editar/Eliminar
+  document.getElementById('editTeamForm')?.addEventListener('submit', handleEditTeamSubmit);
+  document.getElementById('selectEditTeam')?.addEventListener('change', handleSelectEditTeamChange);
+  document.getElementById('btnDeleteTeam')?.addEventListener('click', handleDeleteTeamButton);
+
   initGlobalTournamentsObserver();
 });
 
@@ -172,13 +177,14 @@ function attachTournamentRealtimeListeners(tournamentId) {
     globalMatches = data.matches || {};
     globalFormats = data.formats || {};
 
-    document.getElementById('appTournamentTitle').innerText = data.name || "Torneo Activo";
+    document.getElementById('appTournamentTitle').innerText = (data.name || "Torneo Activo") + " | DRIBLA, PASA Y ENCESTA STATS";
     document.getElementById('appTournamentVenue').innerText = data.location || "Sede General";
     document.getElementById('appTournamentFormat').innerText = data.format || "Formato Regular";
 
     populateStaticAdminDropdowns();
     updateFilteredTeamsDropdowns();
     populateScoreMatchesDropdown();
+    populateEditTeamDropdown(); // ✅ AGREGADO: Llamada para llenar el nuevo selector
     renderDashboard();
     renderCategories();
     renderMatchesByVenue();
@@ -230,6 +236,7 @@ function populateStaticAdminDropdowns() {
   const teamCatSel = document.getElementById('regTeamCategory');
   const formatCatSel = document.getElementById('formatSelectCategory');
   const filterCatSel = document.getElementById('classCategoryFilter');
+  const editTeamCatSel = document.getElementById('editTeamCategory'); // ✅ AGREGADO
 
   if (venueSel) {
     venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
@@ -242,6 +249,7 @@ function populateStaticAdminDropdowns() {
   if (teamCatSel) teamCatSel.innerHTML = catOptions;
   if (formatCatSel) formatCatSel.innerHTML = catOptions;
   if (filterCatSel && filterCatSel.children.length === 0) filterCatSel.innerHTML = catOptions;
+  if (editTeamCatSel) editTeamCatSel.innerHTML = catOptions; // ✅ AGREGADO
 }
 
 function updateFilteredTeamsDropdowns() {
@@ -334,3 +342,82 @@ window.deleteMatchEvent = deleteMatchEvent; window.deleteTeamFromApp = deleteTea
 
 function renderDashboard() { const teamsArr = Object.values(globalTeams).filter(t => t?.name); document.getElementById('dashTeamsCount').innerText = teamsArr.length; document.getElementById('dashMatchesCount').innerText = Object.values(globalMatches).filter(m => m?.date).length; const container = document.getElementById('dashboardTeamsContainer'); if (!container) return; container.innerHTML = ''; teamsArr.forEach(team => { const pill = document.createElement('div'); pill.className = 'team-pill'; pill.innerHTML = `<img src="${team.logoUrl || 'https://placehold.co/40x40/007bff/ffffff?text=🏀'}" onerror="this.src='https://placehold.co/40x40/007bff/ffffff?text=🏀'"><div><strong>${team.name}</strong><br><small style="color: #ff6b00;">${categoriesConfig[team.categoryRegistered]?.label || 'Sin Cat.'}</small></div>`; container.appendChild(pill); }); }
 function renderCategories() { const container = document.getElementById('categoriesContainer'); if (!container) return; container.innerHTML = ''; const teamsArr = Object.entries(globalTeams).filter(([_, t]) => t?.name); Object.keys(categoriesConfig).forEach(catKey => { const filteredTeams = teamsArr.filter(([_, t]) => t.categoryRegistered === catKey); const card = document.createElement('div'); card.className = 'category-card'; let list = '<ul style="list-style:none; padding:0;">'; filteredTeams.forEach(([teamId, t]) => { list += `<li style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #333;"><span>🛡️ ${t.name}${t.groupAssigned ? ` <span style="background:#ff6b00; font-size:10px; color:#fff; padding:2px 5px; border-radius:3px;">Grup: ${t.groupAssigned.toUpperCase()}</span>` : ''}</span>${isAdmin ? `<button onclick="deleteTeamFromApp('${teamId}', '${t.name}')" style="background:none; border:none; cursor:pointer;">🗑️</button>` : ''}</li>`; }); list += '</ul>'; card.innerHTML = `<div class="category-card-header"><h4>${categoriesConfig[catKey].label}</h4><p>${categoriesConfig[catKey].desc}</p></div><div class="category-card-body"><h5>Clubes:</h5>${list}</div>`; container.appendChild(card); }); }
+
+// ==========================================
+// ✅ LÓGICA AGREGADA: EDITAR Y ELIMINAR EQUIPO
+// ==========================================
+
+function populateEditTeamDropdown() {
+  const select = document.getElementById('selectEditTeam');
+  if (!select) return;
+  select.innerHTML = '<option value="">-- Selecciona un Equipo --</option>';
+  
+  Object.entries(globalTeams).forEach(([id, t]) => {
+    if (t && t.name) {
+      const catLabel = categoriesConfig[t.categoryRegistered]?.label || t.categoryRegistered;
+      select.innerHTML += `<option value="${id}">${t.name} - ${catLabel}</option>`;
+    }
+  });
+}
+
+function handleSelectEditTeamChange(e) {
+  const teamId = e.target.value;
+  const nameInput = document.getElementById('editTeamName');
+  const logoInput = document.getElementById('editTeamLogo');
+  const catSelect = document.getElementById('editTeamCategory');
+
+  if (!teamId || !globalTeams[teamId]) {
+    document.getElementById('editTeamForm')?.reset();
+    return;
+  }
+
+  const team = globalTeams[teamId];
+  if (nameInput) nameInput.value = team.name || '';
+  if (logoInput) logoInput.value = team.logoUrl || '';
+  if (catSelect) catSelect.value = team.categoryRegistered || '';
+}
+
+function handleEditTeamSubmit(e) {
+  e.preventDefault();
+  if (!currentTournamentId) return;
+  
+  const teamId = document.getElementById('selectEditTeam').value;
+  if (!teamId) {
+    alert("Por favor selecciona un equipo para editar.");
+    return;
+  }
+
+  const newName = document.getElementById('editTeamName').value.trim();
+  const newLogo = document.getElementById('editTeamLogo').value.trim();
+  const newCat = document.getElementById('editTeamCategory').value;
+
+  // Actualizamos en Firebase manteniendo el grupo asignado (si lo tenía)
+  const groupAssigned = globalTeams[teamId].groupAssigned || "";
+
+  update(ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`), {
+    name: newName,
+    logoUrl: newLogo,
+    categoryRegistered: newCat,
+    groupAssigned: groupAssigned 
+  }).then(() => {
+    alert("¡Equipo actualizado correctamente en DRIBLA, PASA Y ENCESTA STATS!");
+    document.getElementById('editTeamForm').reset();
+  }).catch(error => {
+    console.error("Error actualizando:", error);
+    alert("Hubo un error al actualizar.");
+  });
+}
+
+function handleDeleteTeamButton() {
+  const teamId = document.getElementById('selectEditTeam').value;
+  if (!teamId) {
+    alert("Primero selecciona el equipo que deseas eliminar.");
+    return;
+  }
+  
+  const teamName = globalTeams[teamId]?.name || "el equipo";
+  
+  // Reutilizamos tu función maestra para validar que no tenga juegos programados
+  deleteTeamFromApp(teamId, teamName);
+  document.getElementById('editTeamForm').reset();
+}

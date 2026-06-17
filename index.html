@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestión de Torneos de Básquetbol</title>
+  <title>DRIBLA, PASA Y ENCESTA STATS</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <!-- PANTALLA 1: SELECTOR DE TORNEOS MAESTROS -->
   <div id="competition-selector-screen" class="selector-container">
     <div class="selector-card">
       <div class="logo-placeholder">🏆</div>
@@ -18,15 +17,13 @@
       <div class="form-group">
         <label for="globalCompetitionSelect">Competencia Activa:</label>
         <select id="globalCompetitionSelect">
-          <!-- Cargado dinámicamente desde Firebase -->
-        </select>
+          </select>
       </div>
 
       <button id="btnEnterApp" class="btn-primary">🚪 Entrar a la Aplicación</button>
       
       <hr class="selector-divider">
       
-      <!-- Panel de Acceso Coach (Login) -->
       <div id="admin-login-box" class="login-box">
         <h3>🔐 Acceso Coach (Administrador)</h3>
         <form id="loginForm">
@@ -40,15 +37,12 @@
         </form>
       </div>
 
-      <!-- Botón visible solo cuando ya está autenticado -->
       <button id="btnGoToAdminPrep" class="btn-secondary admin-only-block">⚙️ Ir a Panel de Administración</button>
     </div>
   </div>
 
-  <!-- PANTALLA 2: CONTENIDO PRINCIPAL DE LA APLICACIÓN -->
   <div id="main-app-content" style="display: none;">
     
-    <!-- Encabezado Dinámico -->
     <header class="app-header">
       <div class="header-container">
         <div>
@@ -62,7 +56,6 @@
       </div>
     </header>
 
-    <!-- Barra de Navegación Global -->
     <nav class="app-nav">
       <ul class="nav-links">
         <li><button class="nav-btn active" data-section="dashboard" onclick="switchSection('dashboard')">🏠 Inicio</button></li>
@@ -73,10 +66,8 @@
       </ul>
     </nav>
 
-    <!-- Contenedor de Secciones -->
     <main class="app-main-container">
 
-      <!-- SECCIÓN 1: INICIO / DASHBOARD -->
       <section id="dashboard" class="section active">
         <div class="dashboard-grid">
           <div class="stat-card">
@@ -91,48 +82,38 @@
         
         <h2 class="section-title" style="margin-top: 30px;">🛡️ Equipos Inscritos</h2>
         <div id="dashboardTeamsContainer" class="teams-pills-grid">
-          <!-- Se llena dinámicamente con JS -->
-        </div>
+          </div>
       </section>
 
-      <!-- SECCIÓN 2: CATEGORÍAS -->
       <section id="categories" class="section">
         <h2 class="section-title">🏀 Ramas y Categorías</h2>
         <div id="categoriesContainer" class="categories-grid">
-          <!-- Tarjetas de categorías cargadas dinámicamente -->
-        </div>
+          </div>
       </section>
 
-      <!-- SECCIÓN 3: ROL DE JUEGOS -->
       <section id="roles" class="section">
         <h2 class="section-title">📅 Programación y Roles de Juego</h2>
         <div id="venuesRolesContainer" class="venues-roles-stack">
-          <!-- Agenda organizada por canchas y fechas -->
-        </div>
+          </div>
       </section>
 
-      <!-- SECCIÓN 4: CLASIFICACIÓN -->
       <section id="classification" class="section">
         <h2 class="section-title">📊 Tabla de Posiciones y Clasificación</h2>
         <div class="form-group" style="max-width: 300px; margin-bottom: 20px;">
           <label for="classCategoryFilter">Filtrar por Categoría:</label>
           <select id="classCategoryFilter">
-            <!-- Se llena dinámicamente con JS -->
-          </select>
+            </select>
         </div>
         <div id="classificationTablesContainer">
-          <!-- Tablas renderizadas automáticamente -->
-        </div>
+          </div>
       </section>
 
-      <!-- SECCIÓN 5: PANEL DE ADMINISTRACIÓN (SOLO PARA EL COACH) -->
       <section id="admin" class="section">
         <h2 class="section-title">🛠️ Panel de Control Técnico (Exclusivo Coach)</h2>
         <p class="admin-warning-text admin-only-hidden">⚠️ Debes iniciar sesión como Administrador en la pantalla de inicio para desbloquear estos formularios.</p>
         
         <div id="admin-dashboard-panels" class="admin-panels-grid" style="display: none;">
           
-          <!-- Formulario: Registrar Equipo -->
           <div class="admin-form-card">
             <h3>🛡️ Registrar Nuevo Equipo</h3>
             <form id="teamForm">
@@ -152,7 +133,34 @@
             </form>
           </div>
 
-          <!-- Formulario: Configurar Formato de Competencia -->
+          <div class="admin-form-card">
+            <h3>✏️ / 🗑️ Editar o Eliminar Equipo</h3>
+            <form id="editTeamForm">
+              <div class="form-group">
+                <label for="selectEditTeam">Selecciona el equipo a modificar:</label>
+                <select id="selectEditTeam" required style="width: 100%; padding: 8px; margin-bottom: 10px;">
+                  <option value="">-- Selecciona un equipo --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Nuevo Nombre:</label>
+                <input type="text" id="editTeamName" required>
+              </div>
+              <div class="form-group">
+                <label>Nueva URL Logo:</label>
+                <input type="url" id="editTeamLogo">
+              </div>
+              <div class="form-group">
+                <label>Categoría:</label>
+                <select id="editTeamCategory" required></select>
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button type="submit" class="btn-primary" style="flex: 1; background: #10b981; border: none; padding: 10px;">💾 Actualizar</button>
+                <button type="button" id="btnDeleteTeam" style="flex: 1; background: #ef4444; color: white; border: none; padding: 10px; cursor: pointer;">🗑️ Eliminar</button>
+              </div>
+            </form>
+          </div>
+
           <div class="admin-form-card">
             <h3>⚙️ Configurar Formato de Categoría</h3>
             <form id="categoryFormatForm">
@@ -171,23 +179,13 @@
             </form>
           </div>
 
-          <!-- Formulario: Programar Partido -->
           <div class="admin-form-card">
             <h3>📅 Programar Partido</h3>
             <form id="matchForm">
               <div class="form-group">
                 <label for="matchCategory">Categoría del Partido:</label>
                 <select id="matchCategory" required>
-                  <option value="chupon">🍼 Chupon</option>
-                  <option value="micro">👶 Micro</option>
-                  <option value="infantil">🧒 Infantil</option>
-                  <option value="pasarela">🏀 Pasarela</option>
-                  <option value="cadetes">👦 Cadetes</option>
-                  <option value="juvenil">👨 Juvenil</option>
-                  <option value="juvenil-superior">👨 Juvenil Superior</option>
-                  <option value="sub21">👨‍🎓 Sub 21</option>
-                  <option value="sub23">👨‍🎓 Sub 23</option>
-                </select>
+                  </select>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
@@ -221,7 +219,6 @@
             </form>
           </div>
 
-          <!-- Formulario: Registrar Marcadores -->
           <div class="admin-form-card">
             <h3>📝 Registrar Marcador / Resultado</h3>
             <form id="scoreForm">
@@ -245,7 +242,6 @@
             </form>
           </div>
 
-          <!-- Formulario: Agregar Canchas -->
           <div class="admin-form-card">
             <h3>🏢 Registrar Nueva Cancha / Sede</h3>
             <form id="venueForm">
@@ -265,7 +261,6 @@
             </form>
           </div>
 
-          <!-- Formulario Maestro: Crear un Nuevo Torneo General -->
           <div class="admin-form-card" style="grid-column: 1 / -1;">
             <h3>🏆 Inicializar Nueva Competencia General (Torneo Completo)</h3>
             <form id="eventForm">
@@ -296,14 +291,12 @@
               <button type="submit" class="btn-secondary" style="width: 100%;">🚀 Crear y Desplegar Nuevo Evento Maestro</button>
             </form>
           </div>
-
         </div>
       </section>
 
     </main>
   </div>
 
-  <!-- Script Principal usando Firebase v10 modular -->
   <script type="module" src="script.js"></script>
 </body>
 </html>
