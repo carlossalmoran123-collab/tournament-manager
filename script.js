@@ -410,7 +410,7 @@ function renderMatchesByVenue() {
 // RENDER: CLASIFICACIÓN (CON PROMEDIOS)
 // ============================================
 function renderClassificationTables() {
-  const container  = document.getElementById('classificationTablesContainer');
+  const container = document.getElementById('classificationTablesContainer');
   const selectedCat = document.getElementById('classCategoryFilter')?.value;
   if (!container || !selectedCat) return;
   container.innerHTML = '';
@@ -418,101 +418,101 @@ function renderClassificationTables() {
   const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
   const stats = {};
 
-  // 1. Inicializar
+  // 1. Inicializar estadísticas
   Object.entries(globalTeams).forEach(([id, t]) => {
     if (t && t.categoryRegistered === selectedCat) {
-      stats[id] = {
-        name: t.name,
-        group: (t.groupAssigned || 'sin grupo').toLowerCase(),
-        jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, dif: 0, pts: 0
+      stats[id] = { 
+        id: id,
+        name: t.name, 
+        group: (t.groupAssigned || 'sin grupo').toLowerCase(), 
+        jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, pts: 0, dif: 0 
       };
     }
   });
 
-  // 2. Procesar partidos regulares
+  // 2. Procesar partidos (Solo etapa REGULAR)
   Object.values(globalMatches).forEach(m => {
-    if (
-      m &&
-      m.category === selectedCat &&
-      m.stage === 'regular' &&
-      m.localScore !== undefined &&
-      m.visitorScore !== undefined
-    ) {
-      const locS = parseInt(m.localScore);
-      const visS = parseInt(m.visitorScore);
-      if (stats[m.localId] && stats[m.visitorId]) {
-        stats[m.localId].jj++;   stats[m.visitorId].jj++;
-        stats[m.localId].pf  += locS; stats[m.localId].pc  += visS;
+    if (m && m.category === selectedCat && m.stage === 'regular' && m.localScore !== undefined) {
+      const locS = parseInt(m.localScore) || 0;
+      const visS = parseInt(m.visitorScore) || 0;
+      if(stats[m.localId] && stats[m.visitorId]) {
+        stats[m.localId].jj++; stats[m.visitorId].jj++;
+        stats[m.localId].pf += locS; stats[m.localId].pc += visS;
         stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
-        if (locS > visS) {
-          stats[m.localId].jg++;   stats[m.localId].pts   += 2;
-          stats[m.visitorId].jp++; stats[m.visitorId].pts += 1;
-        } else {
-          stats[m.visitorId].jg++; stats[m.visitorId].pts += 2;
-          stats[m.localId].jp++;   stats[m.localId].pts   += 1;
+        
+        if (locS > visS) { 
+          stats[m.localId].jg++; stats[m.localId].pts += 2; 
+          stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; 
+        } else { 
+          stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; 
+          stats[m.localId].jp++; stats[m.localId].pts += 1; 
         }
       }
     }
   });
 
-  // ✅ REINYECCIÓN DE PROMEDIOS (AVERAGE)
-  Object.keys(stats).forEach(id => { 
+  // 3. CALCULO CRITICO: Diferencia y Promedios (UNA SOLA VEZ PARA TODOS)
+  Object.keys(stats).forEach(id => {
     const t = stats[id];
-    t.dif = t.pf - t.pc; 
+    t.dif = t.pf - t.pc; // <--- Cálculo de la diferencia
     t.avgPts = t.jj > 0 ? (t.pts / t.jj) : 0;
     t.avgDif = t.jj > 0 ? (t.dif / t.jj) : 0;
+    t.avgPF  = t.jj > 0 ? (t.pf / t.jj) : 0;
   });
 
-  // Ordenar por PROMEDIO de Puntos, luego Promedio de DIF
-  const sortTeams = (arr) => arr.sort((a, b) => b.avgPts - a.avgPts || b.avgDif - a.avgDif);
-
+  const sortTeams = (arr) => arr.sort((a, b) => b.avgPts - a.avgPts || b.avgDif - a.avgDif || b.avgPF - a.avgPF);
+  
   if (formatConfig.type === 'grupos') {
     const groupsMap = {};
-    Object.values(stats).forEach(t => {
-      if (!groupsMap[t.group]) groupsMap[t.group] = [];
-      groupsMap[t.group].push(t);
+    Object.values(stats).forEach(t => { 
+        if (!groupsMap[t.group]) groupsMap[t.group] = []; 
+        groupsMap[t.group].push(t); 
     });
-
-    const primerosLugares = [];
-    const segundosLugares = [];
+    
+    let segundosLugares = [];
+    let primerosLugares = [];
 
     Object.keys(groupsMap).sort().forEach(groupName => {
       const sorted = sortTeams(groupsMap[groupName]);
       container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
+      
       if (sorted.length > 0) primerosLugares.push(sorted[0]);
       if (sorted.length > 1) segundosLugares.push(sorted[1]);
     });
 
-    // CÁLCULO MEJOR SEGUNDO POR PROMEDIO
+    // Lógica Mejor Segundo y Semifinales
     if (Object.keys(groupsMap).length === 3) {
       const mejorSegundo = sortTeams([...segundosLugares])[0];
+      const clasificadosFinales = sortTeams([...primerosLugares, mejorSegundo]);
+
+      let s1 = clasificadosFinales[0], s2 = clasificadosFinales[1], s3 = clasificadosFinales[2], s4 = clasificadosFinales[3];
+      let avisoReglaOro = "";
+      if (s1.group === s4.group) {
+        let temp = s4; s4 = s3; s3 = temp;
+        avisoReglaOro = `<div style="font-size:0.7rem; color:#ff6b00; margin-top:5px;">🛡️ <em>Regla de Oro: Rivales ajustados para no repetir grupo.</em></div>`;
+      }
 
       container.innerHTML += `
-        <div style="background:rgba(255,107,0,0.15); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:30px;">
-          <h3 style="margin-top:0; color:#ff6b00; text-align:center;">🏆 CLASIFICADOS A SEMIFINALES</h3>
-          <p style="font-size:0.8rem; text-align:center; color:#888;">Criterio: Promedio de Puntos (Justicia en grupos de diferente tamaño)</p>
-          <ul style="list-style:none; padding:0; font-size:1.1rem;">
-            <li>🥇 1er Lugar Grp A: <strong>${primerosLugares.find(t => t.group === 'a')?.name || '---'}</strong></li>
-            <li>🥇 1er Lugar Grp B: <strong>${primerosLugares.find(t => t.group === 'b')?.name || '---'}</strong></li>
-            <li>🥇 1er Lugar Grp C: <strong>${primerosLugares.find(t => t.group === 'c')?.name || '---'}</strong></li>
-            <li style="margin-top:10px; padding-top:10px; border-top:1px solid #ff6b00;">
-              🔥 Mejor Segundo Lugar: 
-              <strong>${mejorSegundo ? mejorSegundo.name : '---'}</strong>
-              ${mejorSegundo ? `(Grupo ${mejorSegundo.group.toUpperCase()})` : ''}
-            </li>
-          </ul>
+        <div style="background:rgba(255, 107, 0, 0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:30px;">
+          <h3 style="margin:0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+            <div style="background:#1e2530; padding:10px; border-radius:8px;">
+              <small>SEMIFINAL 1</small><br><strong>${s1.name} vs ${s4.name}</strong>
+            </div>
+            <div style="background:#1e2530; padding:10px; border-radius:8px;">
+              <small>SEMIFINAL 2</small><br><strong>${s2.name} vs ${s3.name}</strong>
+            </div>
+          </div>
+          ${avisoReglaOro}
         </div>`;
     }
   } else {
-    container.innerHTML +=
-      `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` +
-      generateTableHtml(sortTeams(Object.values(stats)));
+    container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
   }
 }
 
 function generateTableHtml(teamsArray) {
-  if (teamsArray.length === 0)
-    return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras en este sector.</p>';
+  if (teamsArray.length === 0) return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras.</p>';
 
   let html = `
     <div style="overflow-x:auto; margin-bottom:25px;">
@@ -520,20 +520,21 @@ function generateTableHtml(teamsArray) {
         <thead>
           <tr style="background:#1e2530; color:#fff; border-bottom:2px solid var(--accent-orange);">
             <th style="padding:10px; text-align:left;">Pos / Club</th>
-            <th>JJ</th><th>JG</th><th>JP</th>
-            <th>PF</th><th>PC</th><th>DIF</th>
-            <th style="color:var(--accent-orange)">PTS</th>
+            <th>JJ</th><th>JG</th><th>JP</th><th>PF</th><th>PC</th><th>DIF</th><th style="color:var(--accent-orange)">PTS</th>
           </tr>
         </thead>
         <tbody>`;
 
   teamsArray.forEach((t, index) => {
+    // Cálculo visual de la diferencia
+    const diff = t.pf - t.pc;
+    const colorDif = diff > 0 ? '#10b981' : (diff < 0 ? '#ef4444' : '#aaa');
+
     html += `
       <tr style="border-bottom:1px solid var(--border-color)">
         <td style="padding:10px; text-align:left;"><strong>${index + 1}.</strong> ${t.name}</td>
-        <td>${t.jj}</td><td>${t.jg}</td><td>${t.jp}</td>
-        <td>${t.pf}</td><td>${t.pc}</td>
-        <td style="color:${t.dif >= 0 ? '#10b981' : '#ef4444'}">${t.dif > 0 ? '+' : ''}${t.dif}</td>
+        <td>${t.jj}</td><td>${t.jg}</td><td>${t.jp}</td><td>${t.pf}</td><td>${t.pc}</td>
+        <td style="color:${colorDif}; font-weight:bold;">${diff > 0 ? '+' : ''}${diff}</td>
         <td style="font-weight:bold; color:var(--accent-orange);">${t.pts}</td>
       </tr>`;
   });
