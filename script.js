@@ -50,6 +50,7 @@ const categoriesConfig = {
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+  document.getElementById('btnDeleteMatch')?.addEventListener('click', handleDeleteMatchButton);
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
   document.getElementById('btnGoToAdminPrep')?.addEventListener('click', () => switchSection('admin', true));
   document.getElementById('btnBackToSelector')?.addEventListener('click', () => {
@@ -379,26 +380,20 @@ function renderMatchesByVenue() {
       vMatches.sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
 
       vMatches.forEach(([mId, match]) => {
-        const scoreText = (match.localScore !== undefined)
-          ? `<strong style="color:#ff6b00;">${match.localScore} - ${match.visitorScore}</strong>`
-          : '<span style="color:#888;">vs</span>';
+  const scoreText = (match.localScore !== undefined)
+    ? `<strong style="color:#ff6b00;">${match.localScore} - ${match.visitorScore}</strong>`
+    : '<span style="color:#888;">vs</span>';
 
-        const stageBadge = (match.stage && match.stage !== 'regular')
-          ? `<span style="font-size:0.75rem; background:#ff6b00; color:white; padding:2px 6px; border-radius:4px; margin-left:5px;">${match.stage.toUpperCase()}</span>`
-          : '';
+  // ✅ AGREGAMOS ESTE BOTÓN (Solo si es Admin)
+  const deleteBtn = isAdmin ? `<button onclick="deleteMatchEvent('${mId}')" style="background:none; border:none; cursor:pointer; margin-left:10px;">🗑️</button>` : '';
 
-        block.innerHTML += `
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
-            <span style="font-size:0.9rem; min-width:55px;">⏰ ${match.startTime || '--'}</span>
-            <span style="flex:1; text-align:center;">
-              <strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong>
-              ${stageBadge}
-            </span>
-            <span style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px; white-space:nowrap;">
-              ${categoriesConfig[match.category]?.label || match.category || ''}
-            </span>
-          </div>`;
-      });
+  block.innerHTML += `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
+      <span style="font-size:0.9rem;">⏰ ${match.startTime}</span>
+      <span style="flex:1; text-align:center;"><strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong> ${deleteBtn}</span>
+      <span style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px;">${categoriesConfig[match.category]?.label || ''}</span>
+    </div>`;
+});
     }
     container.appendChild(block);
   });
@@ -635,9 +630,12 @@ function handleEventSubmit(e) {
 }
 
 function deleteMatchEvent(matchId) {
-  if (confirm("¿Borrar este partido?"))
+  if (confirm("¿Borrar este partido?")) {
     remove(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`));
+  }
 }
+// Hacerla global para que el onclick del HTML la encuentre
+window.deleteMatchEvent = deleteMatchEvent;
 
 function deleteTeamFromApp(teamId, teamName) {
   const hasMatches = Object.values(globalMatches).some(
@@ -781,4 +779,22 @@ function handleEditMatchSubmit(e) {
       console.error(err);
       alert("Error al actualizar el partido.");
     });
+    
+}
+function handleDeleteMatchButton() {
+  const matchId = document.getElementById('selectEditMatch').value;
+  if (!matchId) return alert("Primero selecciona el partido que deseas eliminar.");
+
+  if (confirm("⚠️ ¿Estás seguro de eliminar este partido? Los puntos y estadísticas se borrarán permanentemente.")) {
+    remove(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`))
+      .then(() => {
+        alert("Partido eliminado con éxito.");
+        document.getElementById('editMatchForm').reset();
+        // Las tablas y roles se actualizarán automáticamente por el onValue
+      })
+      .catch(err => {
+        console.error("Error al eliminar partido:", err);
+        alert("No se pudo eliminar el partido.");
+      });
+  }
 }
