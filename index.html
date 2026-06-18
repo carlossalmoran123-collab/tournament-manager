@@ -16,7 +16,9 @@
   <!-- PANTALLA INICIAL: SELECCIÓN DE COMPETENCIA -->
   <div id="competition-selector-screen" class="selector-container">
     <div class="selector-card">
-      <div class="logo-placeholder">🏆</div>
+      <div class="logo-container">
+    <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" alt="Logo" class="main-logo">
+</div>
       <h2>Panel del Torneo</h2>
       <p class="selector-subtitle">Selecciona el evento deportivo activo o accede como administrador.</p>
       
@@ -52,17 +54,15 @@
   <div id="main-app-content" style="display: none;">
     
     <header class="app-header">
-      <div class="header-container">
-        <div>
-          <h1 id="appTournamentTitle">Cargando Torneo...</h1>
-          <p class="tournament-meta">📍 <span id="appTournamentVenue">--</span> | 📋 <span id="appTournamentFormat">--</span></p>
-        </div>
-        <div class="header-actions">
-          <button id="btnBackToSelector" class="btn-back">⬅️ Cambiar Torneo</button>
-          <button id="logoutBtn" class="btn-logout admin-only">Cerrar Sesión Coach</button>
-        </div>
-      </div>
-    </header>
+  <div class="header-container" style="display: flex; align-items: center; gap: 15px; padding: 10px 20px;">
+    <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" alt="Logo" style="height: 60px; width: auto;">
+    <div style="flex: 1;">
+      <h1 id="appTournamentTitle" style="margin: 0; font-size: 1.5rem;">Cargando...</h1>
+      <p class="tournament-meta" style="margin: 0;">📍 <span id="appTournamentVenue">--</span></p>
+    </div>
+    <!-- ... botones de volver y cerrar sesión ... -->
+  </div>
+</header>
 
     <nav class="app-nav">
       <ul class="nav-links">

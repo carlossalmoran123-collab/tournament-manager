@@ -2,6 +2,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
+const APP_LOGO_URL = "https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png";
+
 const firebaseConfig = {
   apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw",
   authDomain: "torneos-basquetbol.firebaseapp.com",
@@ -378,28 +380,46 @@ function renderMatchesByVenue() {
       block.innerHTML += `<p style="color:#888; font-style:italic;">No hay partidos programados en esta sede.</p>`;
     } else {
       vMatches.sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
+      
+      // ✅ CORRECCIÓN AQUÍ: Usamos matchesHtml consistentemente
+      let matchesHtml = ''; 
 
       vMatches.forEach(([mId, match]) => {
-  const scoreText = (match.localScore !== undefined)
-    ? `<strong style="color:#ff6b00;">${match.localScore} - ${match.visitorScore}</strong>`
-    : '<span style="color:#888;">vs</span>';
+        const scoreText = (match.localScore !== undefined)
+            ? `<strong>${match.localScore}-${match.visitorScore}</strong>`
+            : 'vs';
 
-  // ✅ AGREGAMOS ESTE BOTÓN (Solo si es Admin)
-  const deleteBtn = isAdmin ? `<button onclick="deleteMatchEvent('${mId}')" style="background:none; border:none; cursor:pointer; margin-left:10px;">🗑️</button>` : '';
+        let adminButtons = '';
+        if (isAdmin) {
+            adminButtons = `
+                <div style="display:flex; gap:5px; margin-left:10px;">
+                    <button onclick="printScoresheet('${mId}')" title="Imprimir" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
+                    <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
+                </div>`;
+        }
 
-  block.innerHTML += `
-    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
-      <span style="font-size:0.9rem;">⏰ ${match.startTime}</span>
-      <span style="flex:1; text-align:center;"><strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong> ${deleteBtn}</span>
-      <span style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px;">${categoriesConfig[match.category]?.label || ''}</span>
-    </div>`;
-});
+        matchesHtml += `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
+                <span style="font-size:0.9rem; color:#ccc; min-width:50px;">⏰ ${match.startTime}</span>
+                <span style="flex:1; text-align:center;">
+                    <strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong>
+                </span>
+                <span style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px; margin-left:10px;">
+                  ${categoriesConfig[match.category]?.label || ''}
+                </span>
+                ${adminButtons}
+            </div>`;
+      });
+       block.innerHTML += matchesHtml;
+      
     }
     container.appendChild(block);
   });
 
+  // Renderizar playoffs al inicio
   renderPlayoffs(container);
 }
+
 
 // ============================================
 // RENDER: CLASIFICACIÓN (CON PROMEDIOS)
@@ -770,7 +790,7 @@ function handleEditMatchSubmit(e) {
     venueId:     document.getElementById('editMatchVenue').value
   };
 
-  update(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`), updatedData)
+   update(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`), updatedData)
     .then(() => {
       alert("✅ Partido actualizado correctamente.");
       document.getElementById('editMatchForm').reset();
@@ -779,8 +799,8 @@ function handleEditMatchSubmit(e) {
       console.error(err);
       alert("Error al actualizar el partido.");
     });
-    
 }
+
 function handleDeleteMatchButton() {
   const matchId = document.getElementById('selectEditMatch').value;
   if (!matchId) return alert("Primero selecciona el partido que deseas eliminar.");
@@ -796,5 +816,91 @@ function handleDeleteMatchButton() {
         console.error("Error al eliminar partido:", err);
         alert("No se pudo eliminar el partido.");
       });
-  }
+    }
 }
+
+
+function printScoresheet(matchId) {
+    const m = globalMatches[matchId];
+    if (!m) return;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Cédula - ${m.localName} vs ${m.visitorName}</title>
+            <style>
+                body { font-family: 'Helvetica', Arial, sans-serif; padding: 20px; color: #000; }
+                .header-container { display: flex; align-items: center; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+                .header-logo { height: 100px; width: auto; margin-right: 20px; }
+                .header-text { flex: 1; text-align: center; }
+                .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                .info-table td { padding: 8px; border: 1px solid #000; font-size: 14px; }
+                .teams-container { display: flex; justify-content: space-between; gap: 15px; }
+                .team-box { width: 49%; }
+                .player-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                .player-table th, .player-table td { border: 1px solid #000; padding: 6px; text-align: center; font-size: 12px; }
+                .footer { margin-top: 40px; display: flex; justify-content: space-around; }
+                .sign-line { border-top: 1px solid #000; width: 140px; text-align: center; font-size: 12px; padding-top: 5px; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="no-print"><button onclick="window.print()" style="padding:10px; margin-bottom:20px; cursor:pointer;">🖨️ IMPRIMIR CÉDULA</button></div>
+            
+            <div class="header-container">
+                <img src="${APP_LOGO_URL}" class="header-logo">
+                <div class="header-text">
+                    <h1 style="margin:0; font-size: 24px;">HOJA DE ANOTACIÓN OFICIAL</h1>
+                    <h2 style="margin:5px 0; color: #444;">DRIBLA, PASA Y ENCESTA</h2>
+                </div>
+                <div style="width:100px;"></div> <!-- balance visual -->
+            </div>
+
+            <table class="info-table">
+                <tr>
+                    <td><strong>RAMA / CAT:</strong> ${categoriesConfig[m.category]?.label || m.category}</td>
+                    <td><strong>FECHA:</strong> ${m.date}</td>
+                    <td><strong>HORA:</strong> ${m.startTime}</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><strong>CANCHA:</strong> ${globalVenues[m.venueId]?.name || '---'}</td>
+                    <td><strong>ETAPA:</strong> ${m.stage ? m.stage.toUpperCase() : 'LIGA'}</td>
+                </tr>
+            </table>
+
+            <div class="teams-container">
+                <div class="team-box">
+                    <h4 style="margin:0; padding:5px; background:#000; color:#fff; text-align:center;">LOCAL: ${m.localName}</h4>
+                    <table class="player-table">
+                        <thead><tr><th>#</th><th>Nombre Jugador</th><th>F1</th><th>F2</th><th>F3</th><th>F4</th><th>F5</th></tr></thead>
+                        <tbody>${Array(12).fill('<tr><td style="height:22px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</tbody>
+                    </table>
+                </div>
+                <div class="team-box">
+                    <h4 style="margin:0; padding:5px; background:#000; color:#fff; text-align:center;">VISITA: ${m.visitorName}</h4>
+                    <table class="player-table">
+                        <thead><tr><th>#</th><th>Nombre Jugador</th><th>F1</th><th>F2</th><th>F3</th><th>F4</th><th>F5</th></tr></thead>
+                        <tbody>${Array(12).fill('<tr><td style="height:22px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</tbody>
+                    </table>
+                </div>
+            </div>
+
+            <table class="player-table" style="width: 300px; margin-top: 20px;">
+                <thead><tr><th colspan="6">PUNTUACIÓN POR PERIODOS</th></tr></thead>
+                <tr><td>1°</td><td>2°</td><td>3°</td><td>4°</td><td>EX</td><td>Total</td></tr>
+                <tr><td style="height:30px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
+            </table>
+
+            <div class="footer">
+                <div class="sign-line">Capitán Local</div>
+                <div class="sign-line">Capitán Visita</div>
+                <div class="sign-line">Árbitro</div>
+                <div class="sign-line">Anotador</div>
+            </div>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+    window.printScoresheet = printScoresheet;
