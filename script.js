@@ -243,7 +243,13 @@ function populateStaticAdminDropdowns() {
 
   if (teamCatSel)     teamCatSel.innerHTML     = catOptions;
   if (formatCatSel)   formatCatSel.innerHTML   = catOptions;
-  if (filterCatSel && filterCatSel.children.length === 0) filterCatSel.innerHTML = catOptions;
+  // FIX: siempre actualizar el filtro de categoría (no solo la primera vez)
+  if (filterCatSel) {
+    const prevVal = filterCatSel.value; // guardar selección actual
+    filterCatSel.innerHTML = catOptions;
+    // restaurar la selección si sigue siendo válida
+    if (prevVal) filterCatSel.value = prevVal;
+  }
   if (editTeamCatSel)  editTeamCatSel.innerHTML  = catOptions;
   if (editMatchCatSel) editMatchCatSel.innerHTML = catOptions;
   if (matchCatSel)    matchCatSel.innerHTML    = catOptions;
@@ -431,12 +437,27 @@ function renderMatchesByVenue() {
 // RENDER: CLASIFICACIÓN
 // ============================================
 function renderClassificationTables() {
-  const container   = document.getElementById('classificationTablesContainer');
-  const selectedCat = document.getElementById('classCategoryFilter')?.value;
-  if (!container || !selectedCat) return;
+  const container      = document.getElementById('classificationTablesContainer');
+  const filterEl       = document.getElementById('classCategoryFilter');
+  if (!container || !filterEl) return;
+
+  // FIX: si no hay categoría seleccionada, seleccionar la primera disponible automáticamente
+  if (!filterEl.value && filterEl.options.length > 0) {
+    filterEl.value = filterEl.options[0].value;
+  }
+
+  const selectedCat = filterEl.value;
+  if (!selectedCat) return;
   container.innerHTML = '';
 
-  const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
+  // FIX: auto-detectar formato por grupos si algún equipo tiene groupAssigned
+  //      en lugar de depender solo de globalFormats (que puede no estar configurado)
+  const teamsInCat = Object.values(globalTeams).filter(t => t && t.categoryRegistered === selectedCat);
+  const hasGroups  = teamsInCat.some(t => t.groupAssigned && t.groupAssigned.trim() !== '');
+  const savedFormat = globalFormats[selectedCat]?.type;
+  // Prioridad: 1) formato guardado en admin, 2) auto-detectar por grupos asignados
+  const formatType = savedFormat || (hasGroups ? 'grupos' : 'todos-contra-todos');
+  const formatConfig = { type: formatType };
   const stats = {};
 
   Object.entries(globalTeams).forEach(([id, t]) => {
@@ -481,48 +502,257 @@ function renderClassificationTables() {
   );
 
   if (formatConfig.type === 'grupos') {
+    // ── Construir mapa de grupos ──────────────────────────────────────────────
     const groupsMap = {};
     Object.values(stats).forEach(t => {
       if (!groupsMap[t.group]) groupsMap[t.group] = [];
       groupsMap[t.group].push(t);
     });
 
+    const groupNames      = Object.keys(groupsMap).sort();
+    const numGroups       = groupNames.length;
     const primerosLugares = [];
     const segundosLugares = [];
 
-    Object.keys(groupsMap).sort().forEach(groupName => {
+    // Criterios de desempate (usados en toda la lógica de cruces):
+    // 1° Promedio de puntos (pts / JJ)
+    // 2° Diferencia de puntos (pf - pc) / JJ
+    // 3° Promedio de puntos anotados (pf / JJ)
+    // 4° Resultado del enfrentamiento directo (se aplica en tabla si aplica)
+
+    // Renderizar tabla de cada grupo con leyenda de criterios
+    groupNames.forEach(groupName => {
       const sorted = sortTeams(groupsMap[groupName]);
-      container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
-      if (sorted.length > 0) primerosLugares.push(sorted[0]);
-      if (sorted.length > 1) segundosLugares.push(sorted[1]);
+      container.innerHTML +=
+        `<h3 style="color:var(--accent-orange); margin-top:20px;">
+           Grupo: ${groupName.toUpperCase()}
+           <span style="font-size:0.7rem; color:#aaa; font-weight:normal; margin-left:10px;">
+             Desempate: 1°Prom.Pts · 2°Dif.Puntos · 3°Prom.Anotados
+           </span>
+         </h3>` + generateTableHtml(sorted);
+      if (sorted.length > 0) primerosLugares.push({ ...sorted[0], groupOrigin: groupName });
+      if (sorted.length > 1) segundosLugares.push({ ...sorted[1], groupOrigin: groupName });
     });
 
-    if (Object.keys(groupsMap).length === 3) {
-      const mejorSegundo = sortTeams([...segundosLugares])[0];
-      const clasificadosFinales = sortTeams([...primerosLugares, mejorSegundo]);
+    // ── 2 GRUPOS → Semis: 1°A vs 2°B  y  1°B vs 2°A ──────────────────────────
+    if (numGroups === 2) {
+      const [p1, p2] = primerosLugares;  // 1° de cada grupo
+      const [seg1, seg2] = segundosLugares;  // 2° de cada grupo
 
-      let s1 = clasificadosFinales[0], s2 = clasificadosFinales[1],
-          s3 = clasificadosFinales[2], s4 = clasificadosFinales[3];
+      // Cruce clásico: 1° de un grupo vs 2° del otro
+      const semi1Local   = p1;   // 1° Grupo A
+      const semi1Visitor = seg2; // 2° Grupo B
+      const semi2Local   = p2;   // 1° Grupo B
+      const semi2Visitor = seg1; // 2° Grupo A
+
+      const crit2dos = segundosLugares.map(t => `
+        <tr>
+          <td style="padding:4px 8px; text-align:left;"><strong>${t.name}</strong> <span style="color:#aaa; font-size:0.75rem;">(${t.groupOrigin?.toUpperCase()})</span></td>
+          <td style="padding:4px 8px;">${t.jj}</td>
+          <td style="padding:4px 8px;">${t.pts}</td>
+          <td style="padding:4px 8px; color:${(t.pf-t.pc)>=0?'#10b981':'#ef4444'}; font-weight:bold;">
+            ${(t.pf-t.pc)>0?'+':''}${t.pf-t.pc}
+          </td>
+          <td style="padding:4px 8px;">${t.pf}</td>
+        </tr>`).join('');
+
+      container.innerHTML += `
+        <!-- Comparativa 2° lugares -->
+        <div style="background:rgba(30,37,48,0.9); padding:15px; border:1px solid #334155; border-radius:10px; margin-top:20px;">
+          <h4 style="color:#aaa; margin:0 0 10px 0; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px;">
+            🥈 Segundos Lugares
+          </h4>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:center;">
+              <thead>
+                <tr style="background:#0f172a; color:#aaa; border-bottom:1px solid #334155;">
+                  <th style="padding:6px 8px; text-align:left;">Equipo</th>
+                  <th>JJ</th><th>PTS</th><th>DIF</th><th>PF</th>
+                </tr>
+              </thead>
+              <tbody>${crit2dos}</tbody>
+            </table>
+          </div>
+          <p style="color:#888; font-size:0.72rem; margin:8px 0 0 0;">
+            Cruce: 1° de cada grupo enfrenta al 2° del grupo contrario
+          </p>
+        </div>
+
+        <!-- Cruces de semifinales -->
+        <div style="background:rgba(255,107,0,0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:20px;">
+          <h3 style="margin:0 0 5px 0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
+          <p style="text-align:center; color:#aaa; font-size:0.8rem; margin:0 0 15px 0;">
+            Criterio: 1° de cada grupo vs 2° del grupo contrario
+          </p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+            <div style="background:#1e2530; padding:12px; border-radius:8px;">
+              <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 1</div>
+              <div style="text-align:center;">
+                <strong>${semi1Local?.name || '---'}</strong>
+                <span style="color:#aaa; margin:0 8px;">vs</span>
+                <strong>${semi1Visitor?.name || '---'}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.72rem; color:#aaa;">
+                <span>1° Gpo ${semi1Local?.groupOrigin?.toUpperCase() || ''} · ${semi1Local?.pts || 0} pts</span>
+                <span>2° Gpo ${semi1Visitor?.groupOrigin?.toUpperCase() || ''} · ${semi1Visitor?.pts || 0} pts</span>
+              </div>
+            </div>
+            <div style="background:#1e2530; padding:12px; border-radius:8px;">
+              <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 2</div>
+              <div style="text-align:center;">
+                <strong>${semi2Local?.name || '---'}</strong>
+                <span style="color:#aaa; margin:0 8px;">vs</span>
+                <strong>${semi2Visitor?.name || '---'}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.72rem; color:#aaa;">
+                <span>1° Gpo ${semi2Local?.groupOrigin?.toUpperCase() || ''} · ${semi2Local?.pts || 0} pts</span>
+                <span>2° Gpo ${semi2Visitor?.groupOrigin?.toUpperCase() || ''} · ${semi2Visitor?.pts || 0} pts</span>
+              </div>
+            </div>
+          </div>
+          <p style="text-align:center; color:#888; font-size:0.72rem; margin-top:12px;">
+            🏅 Los ganadores de cada semifinal se enfrentan en la <strong>Gran Final</strong>
+          </p>
+        </div>`;
+
+    // ── 3 GRUPOS → El mejor 2° pasa a semis (4 equipos) ──────────────────────
+    } else if (numGroups === 3) {
+      const mejorSegundo      = sortTeams([...segundosLugares])[0];
+      const clasificados      = sortTeams([...primerosLugares, mejorSegundo]);
+      let [s1, s2, s3, s4]   = clasificados;
+
+      // Regla de Oro: el 1° no puede enfrentar al equipo de su mismo grupo en semis
       let avisoReglaOro = "";
-      if (s1 && s4 && s1.group === s4.group) {
-        let temp = s4; s4 = s3; s3 = temp;
-        avisoReglaOro = `<div style="font-size:0.7rem; color:#ff6b00; margin-top:5px;">🛡️ <em>Regla de Oro: Rivales ajustados para no repetir grupo.</em></div>`;
+      if (s1 && s4 && s1.groupOrigin === s4.groupOrigin) {
+        [s3, s4] = [s4, s3];
+        avisoReglaOro = `<div style="font-size:0.75rem; color:#ff6b00; margin-top:8px; text-align:center;">
+          🛡️ <em>Regla de Oro aplicada: rivales ajustados para evitar enfrentar al mismo grupo en semis.</em>
+        </div>`;
+      }
+
+      // Criterios de clasificación del mejor 2°
+      const criteriosMejorSegundo = segundosLugares.map(t =>
+        `<tr>
+          <td style="padding:4px 8px; text-align:left;"><strong>${t.name}</strong> <span style="color:#aaa; font-size:0.75rem;">(${t.groupOrigin?.toUpperCase()})</span></td>
+          <td style="padding:4px 8px;">${t.jj}</td>
+          <td style="padding:4px 8px;">${t.pts}</td>
+          <td style="padding:4px 8px; color:${(t.pf-t.pc)>=0?'#10b981':'#ef4444'}; font-weight:bold;">
+            ${(t.pf-t.pc)>0?'+':''}${t.pf-t.pc}
+          </td>
+          <td style="padding:4px 8px;">${t.pf}</td>
+          <td style="padding:4px 8px; ${t.name === mejorSegundo.name ? 'color:#ff6b00; font-weight:bold;' : ''}">
+            ${t.name === mejorSegundo.name ? '✅ CLASIFICA' : '❌'}
+          </td>
+        </tr>`
+      ).join('');
+
+      container.innerHTML += `
+        <!-- Comparativa mejor 2° -->
+        <div style="background:rgba(30,37,48,0.9); padding:15px; border:1px solid #334155; border-radius:10px; margin-top:20px;">
+          <h4 style="color:#aaa; margin:0 0 10px 0; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px;">
+            🥈 Comparativa de 2° lugares — El mejor avanza
+          </h4>
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:center;">
+              <thead>
+                <tr style="background:#0f172a; color:#aaa; border-bottom:1px solid #334155;">
+                  <th style="padding:6px 8px; text-align:left;">Equipo</th>
+                  <th>JJ</th><th>PTS</th><th>DIF</th><th>PF</th><th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>${criteriosMejorSegundo}</tbody>
+            </table>
+          </div>
+          <p style="color:#888; font-size:0.72rem; margin:8px 0 0 0;">
+            Criterios de desempate entre 2° lugares: 1°Puntos acumulados · 2°Diferencia de puntos · 3°Puntos anotados
+          </p>
+        </div>
+
+        <!-- Cruces de semifinales -->
+        <div style="background:rgba(255,107,0,0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:20px;">
+          <h3 style="margin:0 0 5px 0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
+          <p style="text-align:center; color:#aaa; font-size:0.8rem; margin:0 0 15px 0;">
+            Criterio de cruce: 1° vs 4° · 2° vs 3° (por rendimiento general)
+          </p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+            <div style="background:#1e2530; padding:12px; border-radius:8px;">
+              <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 1</div>
+              <div style="text-align:center;">
+                <strong>${s1?.name || '---'}</strong>
+                <span style="color:#aaa; margin:0 8px;">vs</span>
+                <strong>${s4?.name || '---'}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.72rem; color:#aaa;">
+                <span>1° general · ${s1?.pts || 0} pts</span>
+                <span>4° general · ${s4?.pts || 0} pts</span>
+              </div>
+            </div>
+            <div style="background:#1e2530; padding:12px; border-radius:8px;">
+              <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 2</div>
+              <div style="text-align:center;">
+                <strong>${s2?.name || '---'}</strong>
+                <span style="color:#aaa; margin:0 8px;">vs</span>
+                <strong>${s3?.name || '---'}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.72rem; color:#aaa;">
+                <span>2° general · ${s2?.pts || 0} pts</span>
+                <span>3° general · ${s3?.pts || 0} pts</span>
+              </div>
+            </div>
+          </div>
+          ${avisoReglaOro}
+        </div>`;
+
+    // ── 4+ GRUPOS → Semis con los 4 primeros lugares ──────────────────────────
+    } else if (numGroups >= 4) {
+      const clasificados    = sortTeams([...primerosLugares]);
+      let [s1, s2, s3, s4]  = clasificados;
+
+      // Regla de Oro: s1 no puede ir con s4 si son del mismo grupo
+      let avisoReglaOro = "";
+      if (s1 && s4 && s1.groupOrigin === s4.groupOrigin) {
+        [s3, s4] = [s4, s3];
+        avisoReglaOro = `<div style="font-size:0.75rem; color:#ff6b00; margin-top:8px; text-align:center;">
+          🛡️ <em>Regla de Oro aplicada: rivales ajustados para evitar mismo grupo en semis.</em>
+        </div>`;
       }
 
       container.innerHTML += `
         <div style="background:rgba(255,107,0,0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:30px;">
-          <h3 style="margin:0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:15px;">
-            <div style="background:#1e2530; padding:10px; border-radius:8px;">
-              <small>SEMIFINAL 1</small><br><strong>${s1?.name || '---'} vs ${s4?.name || '---'}</strong>
+          <h3 style="margin:0 0 5px 0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
+          <p style="text-align:center; color:#aaa; font-size:0.8rem; margin:0 0 15px 0;">
+            Clasifican los 4 primeros lugares (uno por grupo). Cruce: 1° vs 4° · 2° vs 3°
+          </p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+            <div style="background:#1e2530; padding:12px; border-radius:8px;">
+              <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 1</div>
+              <div style="text-align:center;">
+                <strong>${s1?.name || '---'}</strong>
+                <span style="color:#aaa; margin:0 8px;">vs</span>
+                <strong>${s4?.name || '---'}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.72rem; color:#aaa;">
+                <span>1° Gpo ${s1?.groupOrigin?.toUpperCase() || ''} · ${s1?.pts || 0} pts</span>
+                <span>1° Gpo ${s4?.groupOrigin?.toUpperCase() || ''} · ${s4?.pts || 0} pts</span>
+              </div>
             </div>
-            <div style="background:#1e2530; padding:10px; border-radius:8px;">
-              <small>SEMIFINAL 2</small><br><strong>${s2?.name || '---'} vs ${s3?.name || '---'}</strong>
+            <div style="background:#1e2530; padding:12px; border-radius:8px;">
+              <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 2</div>
+              <div style="text-align:center;">
+                <strong>${s2?.name || '---'}</strong>
+                <span style="color:#aaa; margin:0 8px;">vs</span>
+                <strong>${s3?.name || '---'}</strong>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:0.72rem; color:#aaa;">
+                <span>1° Gpo ${s2?.groupOrigin?.toUpperCase() || ''} · ${s2?.pts || 0} pts</span>
+                <span>1° Gpo ${s3?.groupOrigin?.toUpperCase() || ''} · ${s3?.pts || 0} pts</span>
+              </div>
             </div>
           </div>
           ${avisoReglaOro}
         </div>`;
     }
+
   } else {
     container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` +
       generateTableHtml(sortTeams(Object.values(stats)));
