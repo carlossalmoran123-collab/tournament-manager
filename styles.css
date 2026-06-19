@@ -518,4 +518,3 @@ input:focus, select:focus, textarea:focus {
 /* CONTROL DINÁMICO DE VISIBILIDAD (SE ENCIENDE MEDIANTE LA CLASE .is-admin EN BODY) */
 body:not(.is-admin) .admin-only { display: none !important; }
 body:not(.is-admin) .admin-only-block { display: none !important; }
-body.is-admin .admin-only-hidden { display: none !important; }
