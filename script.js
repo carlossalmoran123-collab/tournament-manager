@@ -5,7 +5,7 @@ import { getDatabase, ref, set, push, onValue, remove, update } from "https://ww
 const APP_LOGO_URL = "https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw",
+  apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw", // ⚠️ Coloca tu API Key real aquí
   authDomain: "torneos-basquetbol.firebaseapp.com",
   projectId: "torneos-basquetbol",
   storageBucket: "torneos-basquetbol.appspot.com",
@@ -55,13 +55,21 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('btnDeleteMatch')?.addEventListener('click', handleDeleteMatchButton);
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
   document.getElementById('btnGoToAdminPrep')?.addEventListener('click', () => switchSection('admin', true));
+
+  // FIX #1 y #2: btnBackToSelector sin el listener duplicado de venueForm
   document.getElementById('btnBackToSelector')?.addEventListener('click', () => {
     document.getElementById('main-app-content').style.display = 'none';
     document.getElementById('competition-selector-screen').style.display = 'flex';
   });
 
+  document.getElementById('editVenueForm')?.addEventListener('submit', handleEditVenueSubmit);
+  document.getElementById('selectEditVenue')?.addEventListener('change', handleSelectEditVenueChange);
+  document.getElementById('btnDeleteVenue')?.addEventListener('click', handleDeleteVenueButton);
   document.getElementById('teamForm')?.addEventListener('submit', handleTeamSubmit);
+
+  // FIX #2: venueForm registrado una sola vez aquí
   document.getElementById('venueForm')?.addEventListener('submit', handleVenueSubmit);
+
   document.getElementById('matchForm')?.addEventListener('submit', handleMatchSubmit);
   document.getElementById('eventForm')?.addEventListener('submit', handleEventSubmit);
   document.getElementById('categoryFormatForm')?.addEventListener('submit', handleFormatSubmit);
@@ -116,6 +124,7 @@ function attachTournamentRealtimeListeners(tournamentId) {
     renderCategories();
     renderMatchesByVenue();
     renderClassificationTables();
+    populateEditVenueDropdown();
   });
 }
 
@@ -126,14 +135,14 @@ onAuthStateChanged(auth, (user) => {
   isAdmin = !!user;
   if (user) {
     document.body.classList.add('is-admin');
-    document.getElementById('admin-login-box')?.style && (document.getElementById('admin-login-box').style.display = 'none');
-    document.getElementById('btnGoToAdminPrep')?.style && (document.getElementById('btnGoToAdminPrep').style.display = 'block');
-    document.getElementById('admin-dashboard-panels')?.style && (document.getElementById('admin-dashboard-panels').style.display = 'grid');
+    if (document.getElementById('admin-login-box'))    document.getElementById('admin-login-box').style.display = 'none';
+    if (document.getElementById('btnGoToAdminPrep'))   document.getElementById('btnGoToAdminPrep').style.display = 'block';
+    if (document.getElementById('admin-dashboard-panels')) document.getElementById('admin-dashboard-panels').style.display = 'grid';
   } else {
     document.body.classList.remove('is-admin');
-    document.getElementById('admin-login-box')?.style && (document.getElementById('admin-login-box').style.display = 'flex');
-    document.getElementById('btnGoToAdminPrep')?.style && (document.getElementById('btnGoToAdminPrep').style.display = 'none');
-    document.getElementById('admin-dashboard-panels')?.style && (document.getElementById('admin-dashboard-panels').style.display = 'none');
+    if (document.getElementById('admin-login-box'))    document.getElementById('admin-login-box').style.display = 'flex';
+    if (document.getElementById('btnGoToAdminPrep'))   document.getElementById('btnGoToAdminPrep').style.display = 'none';
+    if (document.getElementById('admin-dashboard-panels')) document.getElementById('admin-dashboard-panels').style.display = 'none';
   }
   renderCompetitionsSelector();
   if (currentTournamentId) {
@@ -206,13 +215,13 @@ window.switchSection = switchSection;
 // DROPDOWNS
 // ============================================
 function populateStaticAdminDropdowns() {
-  const venueSel      = document.getElementById('selectMatchVenue');
-  const teamCatSel    = document.getElementById('regTeamCategory');
-  const formatCatSel  = document.getElementById('formatSelectCategory');
-  const filterCatSel  = document.getElementById('classCategoryFilter');
-  const editTeamCatSel = document.getElementById('editTeamCategory');
+  const venueSel        = document.getElementById('selectMatchVenue');
+  const teamCatSel      = document.getElementById('regTeamCategory');
+  const formatCatSel    = document.getElementById('formatSelectCategory');
+  const filterCatSel    = document.getElementById('classCategoryFilter');
+  const editTeamCatSel  = document.getElementById('editTeamCategory');
   const editMatchCatSel = document.getElementById('editMatchCategory');
-  const matchCatSel   = document.getElementById('matchCategory');
+  const matchCatSel     = document.getElementById('matchCategory');
 
   if (venueSel) {
     venueSel.innerHTML = '<option value="">-- Selecciona Cancha --</option>';
@@ -232,21 +241,21 @@ function populateStaticAdminDropdowns() {
   const catOptions = Object.entries(categoriesConfig)
     .map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
 
-  if (teamCatSel)    teamCatSel.innerHTML    = catOptions;
-  if (formatCatSel)  formatCatSel.innerHTML  = catOptions;
+  if (teamCatSel)     teamCatSel.innerHTML     = catOptions;
+  if (formatCatSel)   formatCatSel.innerHTML   = catOptions;
   if (filterCatSel && filterCatSel.children.length === 0) filterCatSel.innerHTML = catOptions;
   if (editTeamCatSel)  editTeamCatSel.innerHTML  = catOptions;
   if (editMatchCatSel) editMatchCatSel.innerHTML = catOptions;
-  if (matchCatSel)   matchCatSel.innerHTML   = catOptions;
+  if (matchCatSel)    matchCatSel.innerHTML    = catOptions;
 
   updateFilteredTeamsDropdowns();
 }
 
 function updateFilteredTeamsDropdowns() {
-  const matchCatSel = document.getElementById('matchCategory');
+  const matchCatSel      = document.getElementById('matchCategory');
   const selectedCategory = matchCatSel?.value;
-  const localSel   = document.getElementById('selectLocal');
-  const visitorSel = document.getElementById('selectVisitor');
+  const localSel         = document.getElementById('selectLocal');
+  const visitorSel       = document.getElementById('selectVisitor');
   if (!localSel || !visitorSel || !selectedCategory) return;
 
   localSel.innerHTML = visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
@@ -287,7 +296,7 @@ function populateScoreMatchesDropdown() {
 // ============================================
 function renderDashboard() {
   const teamsArr = Object.values(globalTeams).filter(t => t?.name);
-  document.getElementById('dashTeamsCount').innerText  = teamsArr.length;
+  document.getElementById('dashTeamsCount').innerText   = teamsArr.length;
   document.getElementById('dashMatchesCount').innerText = Object.values(globalMatches).length;
 
   const container = document.getElementById('dashboardTeamsContainer');
@@ -323,7 +332,7 @@ function renderCategories() {
 }
 
 // ============================================
-// RENDER: ROL DE JUEGOS + PLAYOFFS
+// RENDER: PLAYOFFS
 // ============================================
 function renderPlayoffs(container) {
   const playoffs = Object.values(globalMatches).filter(
@@ -336,9 +345,7 @@ function renderPlayoffs(container) {
   playoffBlock.innerHTML = `<h2 style="color:#ff6b00; text-align:center; margin:0 0 15px 0;">🔥 FASE FINAL</h2>`;
 
   playoffs.forEach(m => {
-    const score = m.localScore !== undefined
-      ? `${m.localScore} - ${m.visitorScore}`
-      : 'VS';
+    const score = m.localScore !== undefined ? `${m.localScore} - ${m.visitorScore}` : 'VS';
     playoffBlock.innerHTML += `
       <div style="text-align:center; padding:10px; border-bottom:1px solid #444;">
         <small style="text-transform:uppercase; color:#aaa;">${m.stage}</small><br>
@@ -351,6 +358,9 @@ function renderPlayoffs(container) {
   container.prepend(playoffBlock);
 }
 
+// ============================================
+// RENDER: ROL DE JUEGOS
+// ============================================
 function renderMatchesByVenue() {
   const container = document.getElementById('venuesRolesContainer');
   if (!container) return;
@@ -364,8 +374,9 @@ function renderMatchesByVenue() {
     block.className = 'venue-role-block';
     block.style.marginBottom = '30px';
 
+    // FIX #3: href__ → href
     const mapsLink = venue.mapsUrl
-       ? `<a href="${venue.mapsUrl}" target="_blank" style="margin-left:15px; font-size:0.85rem; color:#ff6b00; text-decoration:underline;">📍 Ver Ubicación</a>`
+      ? `<a href="${venue.mapsUrl}" target="_blank" style="margin-left:15px; font-size:0.85rem; color:#ff6b00; text-decoration:underline;">📍 Ver Ubicación</a>`
       : '';
 
     block.innerHTML = `
@@ -377,55 +388,50 @@ function renderMatchesByVenue() {
     const vMatches = matchesArr.filter(([_, m]) => m.venueId === venueId);
 
     if (vMatches.length === 0) {
-      block.innerHTML += `<p style="color:#888; font-style:italic;">No hay partidos programados en esta sede.</p>`;
+      block.innerHTML += `<p style="color:#888; font-style:italic; padding:10px;">No hay partidos programados.</p>`;
     } else {
       vMatches.sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
-      
-      // ✅ CORRECCIÓN AQUÍ: Usamos matchesHtml consistentemente
-      let matchesHtml = ''; 
 
+      let matchesHtml = '';
       vMatches.forEach(([mId, match]) => {
         const scoreText = (match.localScore !== undefined)
-            ? `<strong>${match.localScore}-${match.visitorScore}</strong>`
-            : 'vs';
+          ? `<strong>${match.localScore}-${match.visitorScore}</strong>`
+          : 'vs';
 
         let adminButtons = '';
         if (isAdmin) {
-            adminButtons = `
-                <div style="display:flex; gap:5px; margin-left:10px;">
-                    <button onclick="printScoresheet('${mId}')" title="Imprimir" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
-                    <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
-                </div>`;
+          adminButtons = `
+            <div style="display:flex; gap:5px; margin-left:10px;">
+              <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
+              <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
+            </div>`;
         }
 
         matchesHtml += `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
-                <span style="font-size:0.9rem; color:#ccc; min-width:50px;">⏰ ${match.startTime}</span>
-                <span style="flex:1; text-align:center;">
-                    <strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong>
-                </span>
-                <span style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px; margin-left:10px;">
-                  ${categoriesConfig[match.category]?.label || ''}
-                </span>
-                ${adminButtons}
-            </div>`;
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
+            <span style="font-size:0.9rem; color:#ccc; min-width:55px;">⏰ ${match.startTime}</span>
+            <span style="flex:1; text-align:center;">
+              <strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong>
+            </span>
+            <span style="font-size:0.7rem; background:#334155; padding:2px 6px; border-radius:4px; margin-left:10px; color:#aaa;">
+              ${categoriesConfig[match.category]?.label || ''}
+            </span>
+            ${adminButtons}
+          </div>`;
       });
-       block.innerHTML += matchesHtml;
-      
+      block.innerHTML += matchesHtml;
     }
     container.appendChild(block);
   });
 
-  // Renderizar playoffs al inicio
   renderPlayoffs(container);
 }
 
-
 // ============================================
-// RENDER: CLASIFICACIÓN (CON PROMEDIOS)
+// RENDER: CLASIFICACIÓN
 // ============================================
 function renderClassificationTables() {
-  const container = document.getElementById('classificationTablesContainer');
+  const container   = document.getElementById('classificationTablesContainer');
   const selectedCat = document.getElementById('classCategoryFilter')?.value;
   if (!container || !selectedCat) return;
   container.innerHTML = '';
@@ -433,101 +439,99 @@ function renderClassificationTables() {
   const formatConfig = globalFormats[selectedCat] || { type: 'todos-contra-todos' };
   const stats = {};
 
-  // 1. Inicializar estadísticas
   Object.entries(globalTeams).forEach(([id, t]) => {
     if (t && t.categoryRegistered === selectedCat) {
-      stats[id] = { 
-        id: id,
-        name: t.name, 
-        group: (t.groupAssigned || 'sin grupo').toLowerCase(), 
-        jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, pts: 0, dif: 0 
+      stats[id] = {
+        id, name: t.name,
+        group: (t.groupAssigned || 'sin grupo').toLowerCase(),
+        jj: 0, jg: 0, jp: 0, pf: 0, pc: 0, pts: 0, dif: 0
       };
     }
   });
 
-  // 2. Procesar partidos (Solo etapa REGULAR)
   Object.values(globalMatches).forEach(m => {
     if (m && m.category === selectedCat && m.stage === 'regular' && m.localScore !== undefined) {
       const locS = parseInt(m.localScore) || 0;
       const visS = parseInt(m.visitorScore) || 0;
-      if(stats[m.localId] && stats[m.visitorId]) {
-        stats[m.localId].jj++; stats[m.visitorId].jj++;
-        stats[m.localId].pf += locS; stats[m.localId].pc += visS;
+      if (stats[m.localId] && stats[m.visitorId]) {
+        stats[m.localId].jj++;   stats[m.visitorId].jj++;
+        stats[m.localId].pf  += locS; stats[m.localId].pc  += visS;
         stats[m.visitorId].pf += visS; stats[m.visitorId].pc += locS;
-        
-        if (locS > visS) { 
-          stats[m.localId].jg++; stats[m.localId].pts += 2; 
-          stats[m.visitorId].jp++; stats[m.visitorId].pts += 1; 
-        } else { 
-          stats[m.visitorId].jg++; stats[m.visitorId].pts += 2; 
-          stats[m.localId].jp++; stats[m.localId].pts += 1; 
+        if (locS > visS) {
+          stats[m.localId].jg++;   stats[m.localId].pts   += 2;
+          stats[m.visitorId].jp++; stats[m.visitorId].pts += 1;
+        } else {
+          stats[m.visitorId].jg++; stats[m.visitorId].pts += 2;
+          stats[m.localId].jp++;   stats[m.localId].pts   += 1;
         }
       }
     }
   });
 
-  // 3. CALCULO CRITICO: Diferencia y Promedios (UNA SOLA VEZ PARA TODOS)
   Object.keys(stats).forEach(id => {
     const t = stats[id];
-    t.dif = t.pf - t.pc; // <--- Cálculo de la diferencia
+    t.dif    = t.pf - t.pc;
     t.avgPts = t.jj > 0 ? (t.pts / t.jj) : 0;
     t.avgDif = t.jj > 0 ? (t.dif / t.jj) : 0;
-    t.avgPF  = t.jj > 0 ? (t.pf / t.jj) : 0;
+    t.avgPF  = t.jj > 0 ? (t.pf  / t.jj) : 0;
   });
 
-  const sortTeams = (arr) => arr.sort((a, b) => b.avgPts - a.avgPts || b.avgDif - a.avgDif || b.avgPF - a.avgPF);
-  
+  const sortTeams = (arr) => arr.sort((a, b) =>
+    b.avgPts - a.avgPts || b.avgDif - a.avgDif || b.avgPF - a.avgPF
+  );
+
   if (formatConfig.type === 'grupos') {
     const groupsMap = {};
-    Object.values(stats).forEach(t => { 
-        if (!groupsMap[t.group]) groupsMap[t.group] = []; 
-        groupsMap[t.group].push(t); 
+    Object.values(stats).forEach(t => {
+      if (!groupsMap[t.group]) groupsMap[t.group] = [];
+      groupsMap[t.group].push(t);
     });
-    
-    let segundosLugares = [];
-    let primerosLugares = [];
+
+    const primerosLugares = [];
+    const segundosLugares = [];
 
     Object.keys(groupsMap).sort().forEach(groupName => {
       const sorted = sortTeams(groupsMap[groupName]);
       container.innerHTML += `<h3>Grupo: ${groupName.toUpperCase()}</h3>` + generateTableHtml(sorted);
-      
       if (sorted.length > 0) primerosLugares.push(sorted[0]);
       if (sorted.length > 1) segundosLugares.push(sorted[1]);
     });
 
-    // Lógica Mejor Segundo y Semifinales
     if (Object.keys(groupsMap).length === 3) {
       const mejorSegundo = sortTeams([...segundosLugares])[0];
       const clasificadosFinales = sortTeams([...primerosLugares, mejorSegundo]);
 
-      let s1 = clasificadosFinales[0], s2 = clasificadosFinales[1], s3 = clasificadosFinales[2], s4 = clasificadosFinales[3];
+      let s1 = clasificadosFinales[0], s2 = clasificadosFinales[1],
+          s3 = clasificadosFinales[2], s4 = clasificadosFinales[3];
       let avisoReglaOro = "";
-      if (s1.group === s4.group) {
+      if (s1 && s4 && s1.group === s4.group) {
         let temp = s4; s4 = s3; s3 = temp;
         avisoReglaOro = `<div style="font-size:0.7rem; color:#ff6b00; margin-top:5px;">🛡️ <em>Regla de Oro: Rivales ajustados para no repetir grupo.</em></div>`;
       }
 
       container.innerHTML += `
-        <div style="background:rgba(255, 107, 0, 0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:30px;">
+        <div style="background:rgba(255,107,0,0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:30px;">
           <h3 style="margin:0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:15px;">
             <div style="background:#1e2530; padding:10px; border-radius:8px;">
-              <small>SEMIFINAL 1</small><br><strong>${s1.name} vs ${s4.name}</strong>
+              <small>SEMIFINAL 1</small><br><strong>${s1?.name || '---'} vs ${s4?.name || '---'}</strong>
             </div>
             <div style="background:#1e2530; padding:10px; border-radius:8px;">
-              <small>SEMIFINAL 2</small><br><strong>${s2.name} vs ${s3.name}</strong>
+              <small>SEMIFINAL 2</small><br><strong>${s2?.name || '---'} vs ${s3?.name || '---'}</strong>
             </div>
           </div>
           ${avisoReglaOro}
         </div>`;
     }
   } else {
-    container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` + generateTableHtml(sortTeams(Object.values(stats)));
+    container.innerHTML += `<h3>Liga General: ${categoriesConfig[selectedCat].label}</h3>` +
+      generateTableHtml(sortTeams(Object.values(stats)));
   }
 }
 
 function generateTableHtml(teamsArray) {
-  if (teamsArray.length === 0) return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras.</p>';
+  if (teamsArray.length === 0)
+    return '<p style="color:#aaa; font-style:italic; padding:10px;">No hay escuadras.</p>';
 
   let html = `
     <div style="overflow-x:auto; margin-bottom:25px;">
@@ -535,16 +539,15 @@ function generateTableHtml(teamsArray) {
         <thead>
           <tr style="background:#1e2530; color:#fff; border-bottom:2px solid var(--accent-orange);">
             <th style="padding:10px; text-align:left;">Pos / Club</th>
-            <th>JJ</th><th>JG</th><th>JP</th><th>PF</th><th>PC</th><th>DIF</th><th style="color:var(--accent-orange)">PTS</th>
+            <th>JJ</th><th>JG</th><th>JP</th><th>PF</th><th>PC</th><th>DIF</th>
+            <th style="color:var(--accent-orange)">PTS</th>
           </tr>
         </thead>
         <tbody>`;
 
   teamsArray.forEach((t, index) => {
-    // Cálculo visual de la diferencia
     const diff = t.pf - t.pc;
     const colorDif = diff > 0 ? '#10b981' : (diff < 0 ? '#ef4444' : '#aaa');
-
     html += `
       <tr style="border-bottom:1px solid var(--border-color)">
         <td style="padding:10px; text-align:left;"><strong>${index + 1}.</strong> ${t.name}</td>
@@ -598,16 +601,25 @@ function handleTeamSubmit(e) {
     });
 }
 
+// FIX #1: handleVenueSubmit definida UNA SOLA VEZ (versión completa con .catch)
 function handleVenueSubmit(e) {
   e.preventDefault();
-  if (!currentTournamentId) return;
+  if (!currentTournamentId) return alert("Selecciona un torneo primero.");
+
+  const name    = document.getElementById('venueName').value.trim();
+  const address = document.getElementById('venueAddress').value.trim();
+  const mapsUrl = document.getElementById('venueMapsUrl').value.trim();
+
   push(ref(db, `tournaments/${currentTournamentId}/venues`), {
-    name:    document.getElementById('venueName').value.trim(),
-    address: document.getElementById('venueAddress').value.trim(),
-    mapsUrl: document.getElementById('venueMapsUrl').value.trim()
+    name,
+    address,
+    mapsUrl
   }).then(() => {
-    alert("Cancha guardada.");
+    alert("✅ Sede guardada correctamente.");
     document.getElementById('venueForm').reset();
+  }).catch(error => {
+    console.error("Error al guardar sede:", error);
+    alert("Hubo un error al guardar la sede.");
   });
 }
 
@@ -649,12 +661,13 @@ function handleEventSubmit(e) {
   });
 }
 
+// ============================================
+// ELIMINAR PARTIDO / EQUIPO
+// ============================================
 function deleteMatchEvent(matchId) {
-  if (confirm("¿Borrar este partido?")) {
+  if (confirm("¿Borrar este partido?"))
     remove(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`));
-  }
 }
-// Hacerla global para que el onclick del HTML la encuentre
 window.deleteMatchEvent = deleteMatchEvent;
 
 function deleteTeamFromApp(teamId, teamName) {
@@ -665,7 +678,6 @@ function deleteTeamFromApp(teamId, teamName) {
   if (confirm(`¿Eliminar ${teamName}?`))
     remove(ref(db, `tournaments/${currentTournamentId}/teams/${teamId}`));
 }
-window.deleteMatchEvent  = deleteMatchEvent;
 window.deleteTeamFromApp = deleteTeamFromApp;
 
 // ============================================
@@ -686,24 +698,21 @@ function handleSelectEditTeamChange(e) {
   const teamId = e.target.value;
   if (!teamId || !globalTeams[teamId]) return;
   const team = globalTeams[teamId];
-  document.getElementById('editTeamName').value     = team.name              || '';
-  document.getElementById('editTeamLogo').value     = team.logoUrl           || '';
+  document.getElementById('editTeamName').value     = team.name               || '';
+  document.getElementById('editTeamLogo').value     = team.logoUrl            || '';
   document.getElementById('editTeamCategory').value = team.categoryRegistered || '';
-  document.getElementById('editTeamGroup').value    = team.groupAssigned     || '';
+  document.getElementById('editTeamGroup').value    = team.groupAssigned      || '';
 }
 
 function handleEditTeamSubmit(e) {
   e.preventDefault();
   const id = document.getElementById('selectEditTeam').value;
   if (!id) return alert("Selecciona un equipo.");
-  
-  // ✅ FORZAMOS MINÚSCULAS AL GUARDAR
   const groupInput = document.getElementById('editTeamGroup').value.trim().toLowerCase();
-  
   update(ref(db, `tournaments/${currentTournamentId}/teams/${id}`), {
-    name:              document.getElementById('editTeamName').value.trim(),
+    name:               document.getElementById('editTeamName').value.trim(),
     categoryRegistered: document.getElementById('editTeamCategory').value,
-    groupAssigned:     groupInput
+    groupAssigned:      groupInput
   }).then(() => {
     alert("¡Equipo actualizado correctamente!");
     document.getElementById('editTeamForm').reset();
@@ -786,11 +795,11 @@ function handleEditMatchSubmit(e) {
     visitorId:   vId,
     visitorName: globalTeams[vId].name,
     date:        document.getElementById('editMatchDate').value,
-    startTime:   document.getElementById('matchStartTime').value,
+    startTime:   document.getElementById('editMatchStartTime').value,
     venueId:     document.getElementById('editMatchVenue').value
   };
 
-   update(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`), updatedData)
+  update(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`), updatedData)
     .then(() => {
       alert("✅ Partido actualizado correctamente.");
       document.getElementById('editMatchForm').reset();
@@ -804,103 +813,191 @@ function handleEditMatchSubmit(e) {
 function handleDeleteMatchButton() {
   const matchId = document.getElementById('selectEditMatch').value;
   if (!matchId) return alert("Primero selecciona el partido que deseas eliminar.");
-
   if (confirm("⚠️ ¿Estás seguro de eliminar este partido? Los puntos y estadísticas se borrarán permanentemente.")) {
     remove(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`))
       .then(() => {
         alert("Partido eliminado con éxito.");
         document.getElementById('editMatchForm').reset();
-        // Las tablas y roles se actualizarán automáticamente por el onValue
       })
       .catch(err => {
         console.error("Error al eliminar partido:", err);
         alert("No se pudo eliminar el partido.");
       });
-    }
+  }
 }
 
-
+// ============================================
+// 📄 GENERADOR DE CÉDULA PROFESIONAL
+// ============================================
 function printScoresheet(matchId) {
-    const m = globalMatches[matchId];
-    if (!m) return;
+  const m = globalMatches[matchId];
+  if (!m) return;
 
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Cédula - ${m.localName} vs ${m.visitorName}</title>
-            <style>
-                body { font-family: 'Helvetica', Arial, sans-serif; padding: 20px; color: #000; }
-                .header-container { display: flex; align-items: center; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
-                .header-logo { height: 100px; width: auto; margin-right: 20px; }
-                .header-text { flex: 1; text-align: center; }
-                .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                .info-table td { padding: 8px; border: 1px solid #000; font-size: 14px; }
-                .teams-container { display: flex; justify-content: space-between; gap: 15px; }
-                .team-box { width: 49%; }
-                .player-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                .player-table th, .player-table td { border: 1px solid #000; padding: 6px; text-align: center; font-size: 12px; }
-                .footer { margin-top: 40px; display: flex; justify-content: space-around; }
-                .sign-line { border-top: 1px solid #000; width: 140px; text-align: center; font-size: 12px; padding-top: 5px; }
-                @media print { .no-print { display: none; } }
-            </style>
-        </head>
-        <body>
-            <div class="no-print"><button onclick="window.print()" style="padding:10px; margin-bottom:20px; cursor:pointer;">🖨️ IMPRIMIR CÉDULA</button></div>
-            
-            <div class="header-container">
-                <img src="${APP_LOGO_URL}" class="header-logo">
-                <div class="header-text">
-                    <h1 style="margin:0; font-size: 24px;">HOJA DE ANOTACIÓN OFICIAL</h1>
-                    <h2 style="margin:5px 0; color: #444;">DRIBLA, PASA Y ENCESTA</h2>
-                </div>
-                <div style="width:100px;"></div> <!-- balance visual -->
-            </div>
+  const printWindow = window.open('', '_blank');
 
-            <table class="info-table">
-                <tr>
-                    <td><strong>RAMA / CAT:</strong> ${categoriesConfig[m.category]?.label || m.category}</td>
-                    <td><strong>FECHA:</strong> ${m.date}</td>
-                    <td><strong>HORA:</strong> ${m.startTime}</td>
-                </tr>
-                <tr>
-                    <td colspan="2"><strong>CANCHA:</strong> ${globalVenues[m.venueId]?.name || '---'}</td>
-                    <td><strong>ETAPA:</strong> ${m.stage ? m.stage.toUpperCase() : 'LIGA'}</td>
-                </tr>
-            </table>
+  let runningScoreHTML = '';
+  for (let i = 1; i <= 80; i++) {
+    runningScoreHTML += `<tr><td>${i}</td><td></td><td></td><td>${i + 80}</td><td></td><td></td></tr>`;
+  }
 
-            <div class="teams-container">
-                <div class="team-box">
-                    <h4 style="margin:0; padding:5px; background:#000; color:#fff; text-align:center;">LOCAL: ${m.localName}</h4>
-                    <table class="player-table">
-                        <thead><tr><th>#</th><th>Nombre Jugador</th><th>F1</th><th>F2</th><th>F3</th><th>F4</th><th>F5</th></tr></thead>
-                        <tbody>${Array(12).fill('<tr><td style="height:22px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</tbody>
-                    </table>
-                </div>
-                <div class="team-box">
-                    <h4 style="margin:0; padding:5px; background:#000; color:#fff; text-align:center;">VISITA: ${m.visitorName}</h4>
-                    <table class="player-table">
-                        <thead><tr><th>#</th><th>Nombre Jugador</th><th>F1</th><th>F2</th><th>F3</th><th>F4</th><th>F5</th></tr></thead>
-                        <tbody>${Array(12).fill('<tr><td style="height:22px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</tbody>
-                    </table>
-                </div>
-            </div>
+  printWindow.document.write(`
+    <html>
+    <head>
+      <title>Hoja Oficial - ${m.localName} vs ${m.visitorName}</title>
+      <style>
+        @page { size: letter; margin: 10mm; }
+        body { font-family: 'Arial Narrow', sans-serif; font-size: 11px; color: #000; line-height: 1.2; }
+        .no-print { background: #eee; padding: 10px; text-align: center; border-bottom: 1px solid #ccc; }
+        .header-table { width: 100%; border-bottom: 2px solid #000; margin-bottom: 10px; }
+        .logo { height: 75px; }
+        .title-box { text-align: center; }
+        .title-box h1 { margin: 0; font-size: 20px; text-transform: uppercase; }
+        .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; border: 1px solid #000; padding: 5px; }
+        .main-layout { display: flex; gap: 10px; }
+        .team-column { flex: 1.2; }
+        .score-column { flex: 0.8; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #000; padding: 3px; text-align: center; }
+        .team-header { background: #000; color: #fff; font-weight: bold; padding: 4px; }
+        .running-score th { font-size: 9px; background: #eee; }
+        .running-score td { height: 14px; font-size: 10px; font-weight: bold; }
+        .running-score td:nth-child(1), .running-score td:nth-child(4) { background: #f0f0f0; width: 25px; }
+        .footer-table { width: 100%; margin-top: 15px; }
+        .sign-box { height: 40px; border-bottom: 1px solid #000; vertical-align: bottom; font-size: 9px; }
+        @media print { .no-print { display: none; } }
+      </style>
+    </head>
+    <body>
+      <div class="no-print">
+        <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">🖨️ IMPRIMIR HOJA DE ANOTACIÓN</button>
+      </div>
 
-            <table class="player-table" style="width: 300px; margin-top: 20px;">
-                <thead><tr><th colspan="6">PUNTUACIÓN POR PERIODOS</th></tr></thead>
-                <tr><td>1°</td><td>2°</td><td>3°</td><td>4°</td><td>EX</td><td>Total</td></tr>
-                <tr><td style="height:30px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
-            </table>
+      <table class="header-table">
+        <tr>
+          <td style="border:none; text-align:left;"><img src="${APP_LOGO_URL}" class="logo"></td>
+          <td style="border:none;" class="title-box">
+            <h1>Hoja de Anotación de Baloncesto</h1>
+            <p style="margin:2px 0; font-weight:bold;">DRIBLA, PASA Y ENCESTA</p>
+          </td>
+          <td style="border:none; text-align:right; font-weight:bold;">PARTIDO No. ____</td>
+        </tr>
+      </table>
 
-            <div class="footer">
-                <div class="sign-line">Capitán Local</div>
-                <div class="sign-line">Capitán Visita</div>
-                <div class="sign-line">Árbitro</div>
-                <div class="sign-line">Anotador</div>
-            </div>
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
+      <div class="info-grid">
+        <div><strong>EQUIPO A:</strong> ${m.localName}</div>
+        <div><strong>FECHA:</strong> ${m.date}</div>
+        <div><strong>LUGAR:</strong> ${globalVenues[m.venueId]?.name || '---'}</div>
+        <div><strong>ETAPA:</strong> ${m.stage ? m.stage.toUpperCase() : 'LIGA'}</div>
+        <div><strong>EQUIPO B:</strong> ${m.visitorName}</div>
+        <div><strong>HORA:</strong> ${m.startTime}</div>
+        <div><strong>RAMA/CAT:</strong> ${categoriesConfig[m.category]?.label || m.category}</div>
+        <div><strong>ÁRBITRO:</strong> ________________</div>
+      </div>
+
+      <div class="main-layout">
+        <div class="team-column">
+          <div class="team-header">EQUIPO A: ${m.localName}</div>
+          <table>
+            <thead><tr><th width="10%">#</th><th>NOMBRE DEL JUGADOR</th><th width="30%" colspan="5">FALTAS</th></tr></thead>
+            <tbody>
+              ${Array(12).fill('<tr><td style="height:18px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+            </tbody>
+            <tr><td colspan="2">FALTAS DE EQUIPO</td><td colspan="5">1P [ ] 2P [ ] 3P [ ] 4P [ ]</td></tr>
+          </table>
+
+          <div class="team-header" style="margin-top:10px;">EQUIPO B: ${m.visitorName}</div>
+          <table>
+            <thead><tr><th width="10%">#</th><th>NOMBRE DEL JUGADOR</th><th width="30%" colspan="5">FALTAS</th></tr></thead>
+            <tbody>
+              ${Array(12).fill('<tr><td style="height:18px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+            </tbody>
+            <tr><td colspan="2">FALTAS DE EQUIPO</td><td colspan="5">1P [ ] 2P [ ] 3P [ ] 4P [ ]</td></tr>
+          </table>
+        </div>
+
+        <div class="score-column">
+          <div style="text-align:center; font-weight:bold; border:1px solid #000; border-bottom:none; background:#eee;">PUNTUACIÓN CORRIDA</div>
+          <table class="running-score">
+            <thead><tr><th>Pts</th><th>A</th><th>B</th><th>Pts</th><th>A</th><th>B</th></tr></thead>
+            <tbody>${runningScoreHTML}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <table style="width:400px; margin-top:15px; float:left;">
+        <tr style="background:#eee;"><td>PERIODOS</td><td>1°</td><td>2°</td><td>3°</td><td>4°</td><td>EX</td><td>TOTAL</td></tr>
+        <tr><td>EQUIPO A</td><td style="height:20px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>EQUIPO B</td><td style="height:20px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </table>
+
+      <table class="footer-table">
+        <tr>
+          <td class="sign-box" width="25%">Capitán Equipo A</td>
+          <td class="sign-box" width="25%">Capitán Equipo B</td>
+          <td class="sign-box" width="25%">Anotador / Mesa</td>
+          <td class="sign-box" width="25%">Árbitro Principal</td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
-    window.printScoresheet = printScoresheet;
+window.printScoresheet = printScoresheet;
+
+// ============================================
+// LÓGICA DE SEDES (EDITAR / ELIMINAR)
+// ============================================
+function populateEditVenueDropdown() {
+  const select = document.getElementById('selectEditVenue');
+  if (!select) return;
+  select.innerHTML = '<option value="">-- Selecciona una cancha --</option>';
+  Object.entries(globalVenues).forEach(([id, v]) => {
+    if (v && v.name) {
+      select.innerHTML += `<option value="${id}">${v.name}</option>`;
+    }
+  });
+}
+
+function handleSelectEditVenueChange(e) {
+  const venueId = e.target.value;
+  if (!venueId || !globalVenues[venueId]) return;
+  const v = globalVenues[venueId];
+  document.getElementById('editVenueName').value    = v.name    || '';
+  document.getElementById('editVenueAddress').value = v.address || '';
+  document.getElementById('editVenueMapsUrl').value = v.mapsUrl || '';
+}
+
+function handleEditVenueSubmit(e) {
+  e.preventDefault();
+  const venueId = document.getElementById('selectEditVenue').value;
+  if (!venueId) return alert("Selecciona una sede.");
+
+  update(ref(db, `tournaments/${currentTournamentId}/venues/${venueId}`), {
+    name:    document.getElementById('editVenueName').value.trim(),
+    address: document.getElementById('editVenueAddress').value.trim(),
+    mapsUrl: document.getElementById('editVenueMapsUrl').value.trim()
+  }).then(() => {
+    alert("✅ Sede actualizada correctamente.");
+    document.getElementById('editVenueForm').reset();
+  });
+}
+
+// FIX #4: null check en hasMatches
+function handleDeleteVenueButton() {
+  const venueId = document.getElementById('selectEditVenue').value;
+  if (!venueId) return alert("Selecciona una sede para eliminar.");
+
+  const hasMatches = Object.values(globalMatches).some(m => m && m.venueId === venueId);
+  if (hasMatches) {
+    return alert("❌ No puedes eliminar esta sede porque tiene partidos programados. Mueve o borra los partidos primero.");
+  }
+
+  if (confirm("⚠️ ¿Estás seguro de eliminar esta cancha? Esta acción no se puede deshacer.")) {
+    remove(ref(db, `tournaments/${currentTournamentId}/venues/${venueId}`))
+      .then(() => {
+        alert("Sede eliminada.");
+        document.getElementById('editVenueForm').reset();
+      });
+  }
+}

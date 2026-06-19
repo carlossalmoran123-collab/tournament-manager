@@ -141,6 +141,54 @@
             </form>
           </div>
 
+          <div class="admin-form-card">
+  <h3>🏢 Registrar Nueva Sede (Cancha)</h3>
+  <form id="venueForm">
+    <div class="form-group">
+      <label for="venueName">Nombre de la Cancha:</label>
+      <input type="text" id="venueName" placeholder="Ej: Cancha Central" required>
+    </div>
+    <div class="form-group">
+      <label for="venueAddress">Dirección:</label>
+      <input type="text" id="venueAddress" placeholder="Ej: Av. Juárez #100">
+    </div>
+    <div class="form-group">
+      <label for="venueMapsUrl">Enlace Google Maps (URL):</label>
+      <input type="url" id="venueMapsUrl" placeholder="https://maps.google.com/...">
+    </div>
+    <button type="submit" class="btn-primary">🏢 Guardar Sede</button>
+  </form>
+</div>
+
+          <!-- Nueva Tarjeta: EDITAR / ELIMINAR SEDE -->
+<div class="admin-form-card">
+  <h3>✏️ / 🗑️ Editar o Eliminar Sede (Cancha)</h3>
+  <form id="editVenueForm">
+    <div class="form-group">
+      <label for="selectEditVenue">Seleccionar Sede:</label>
+      <select id="selectEditVenue" required style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        <option value="">-- Selecciona una cancha --</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Nuevo Nombre:</label>
+      <input type="text" id="editVenueName" required>
+    </div>
+    <div class="form-group">
+      <label>Nueva Dirección:</label>
+      <input type="text" id="editVenueAddress">
+    </div>
+    <div class="form-group">
+      <label>Nueva URL Google Maps:</label>
+      <input type="url" id="editVenueMapsUrl">
+    </div>
+    <div style="display: flex; gap: 10px; margin-top: 15px;">
+      <button type="submit" class="btn-primary" style="flex: 1; background: #10b981; border: none; padding: 10px; cursor: pointer;">💾 Actualizar</button>
+      <button type="button" id="btnDeleteVenue" style="flex: 1; background: #ef4444; color: white; border: none; padding: 10px; cursor: pointer;">🗑️ Eliminar</button>
+    </div>
+  </form>
+</div>
+
           <!-- EDITAR / ELIMINAR EQUIPO -->
           <div class="admin-form-card">
             <h3>✏️ Editar o Eliminar Equipo</h3>
