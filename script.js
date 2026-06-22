@@ -378,59 +378,84 @@ function renderMatchesByVenue() {
   venuesArr.forEach(([venueId, venue]) => {
     const block = document.createElement('div');
     block.className = 'venue-role-block';
-    block.style.marginBottom = '30px';
+    block.style.marginBottom = '40px';
 
-    // FIX #3: href__ → href
     const mapsLink = venue.mapsUrl
-      ? `<a href="${venue.mapsUrl}" target="_blank" style="margin-left:15px; font-size:0.85rem; color:#ff6b00; text-decoration:underline;">📍 Ver Ubicación</a>`
+       ? `<a href="${venue.mapsUrl}" target="_blank" style="margin-left:15px; font-size:0.85rem; color:#ff6b00; text-decoration:underline;">📍 Ver Ubicación</a>`
       : '';
 
     block.innerHTML = `
-      <div style="display:flex; align-items:center; border-bottom:2px solid var(--accent-orange); margin-bottom:15px;">
-        <h3 style="margin:0; padding-bottom:5px;">🏢 Sede: ${venue.name}</h3>
+      <div style="display:flex; align-items:center; border-bottom:3px solid var(--accent-orange); margin-bottom:15px; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px 8px 0 0;">
+        <h3 style="margin:0;">🏢 SEDE: ${venue.name}</h3>
         ${mapsLink}
       </div>`;
 
     const vMatches = matchesArr.filter(([_, m]) => m.venueId === venueId);
 
     if (vMatches.length === 0) {
-      block.innerHTML += `<p style="color:#888; font-style:italic; padding:10px;">No hay partidos programados.</p>`;
+      block.innerHTML += `<p style="color:#888; font-style:italic; padding:10px;">No hay partidos programados en esta sede.</p>`;
     } else {
-      vMatches.sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
+      // 1. Obtener fechas únicas
+      const uniqueDates = [...new Set(vMatches.map(([_, m]) => m.date))].sort();
 
-      let matchesHtml = '';
-      vMatches.forEach(([mId, match]) => {
-        const scoreText = (match.localScore !== undefined)
-          ? `<strong>${match.localScore}-${match.visitorScore}</strong>`
-          : 'vs';
+      uniqueDates.forEach(dateString => {
+        // ✅ LÓGICA PARA EL FORMATO DE FECHA (Lunes, 22 de Junio de 2026)
+        const [year, month, day] = dateString.split('-').map(Number);
+        const fechaObj = new Date(year, month - 1, day);
+        
+        const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+        let fechaBonita = fechaObj.toLocaleDateString('es-MX', opciones);
+        
+        // Ponemos la primera letra en mayúscula (ej: lunes -> Lunes)
+        fechaBonita = fechaBonita.charAt(0).toUpperCase() + fechaBonita.slice(1);
 
-        let adminButtons = '';
-        if (isAdmin) {
-          adminButtons = `
-            <div style="display:flex; gap:5px; margin-left:10px;">
-              <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
-              <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
-            </div>`;
-        }
-
-        matchesHtml += `
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
-            <span style="font-size:0.9rem; color:#ccc; min-width:55px;">⏰ ${match.startTime}</span>
-            <span style="flex:1; text-align:center;">
-              <strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong>
-            </span>
-            <span style="font-size:0.7rem; background:#334155; padding:2px 6px; border-radius:4px; margin-left:10px; color:#aaa;">
-              ${categoriesConfig[match.category]?.label || ''}
-            </span>
-            ${adminButtons}
+        let dateHtml = `
+          <div style="background: #1e2530; color: #ff6b00; padding: 8px 15px; font-weight: bold; font-size: 0.95rem; margin: 20px 0 10px 0; border-radius: 4px; display: flex; align-items: center; border-left: 5px solid #ff6b00;">
+            📅 ${fechaBonita}
           </div>`;
+
+        const gamesOfDay = vMatches
+          .filter(([_, m]) => m.date === dateString)
+          .sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
+
+        gamesOfDay.forEach(([mId, match]) => {
+          const scoreText = (match.localScore !== undefined)
+              ? `<strong style="color:#ff6b00; font-size: 1.1rem;">${match.localScore} - ${match.visitorScore}</strong>`
+              : '<span style="color:#888; font-weight: bold;">vs</span>';
+
+          let adminButtons = '';
+          if (isAdmin) {
+              adminButtons = `
+                  <div style="display:flex; gap:5px; margin-left:10px;">
+                      <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
+                      <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
+                  </div>`;
+          }
+
+          dateHtml += `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(255,255,255,0.03); margin-bottom:6px; border-radius:8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div style="min-width:70px;">
+                  <span style="font-size:0.85rem; color:#ff6b00; display:block; font-weight:bold;">⏰ ${match.startTime}</span>
+                </div>
+                <div style="flex:1; text-align:center; padding: 0 10px;">
+                    <span style="font-size:1rem;"><strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong></span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:0.65rem; background:#334155; padding:3px 8px; border-radius:4px; color:#aaa; text-transform: uppercase;">
+                    ${categoriesConfig[match.category]?.label || match.category}
+                  </span>
+                  ${adminButtons}
+                </div>
+            </div>`;
+        });
+        
+        block.innerHTML += dateHtml;
       });
-      block.innerHTML += matchesHtml;
     }
     container.appendChild(block);
   });
 
-  renderPlayoffs(container);
+  if (typeof renderPlayoffs === 'function') renderPlayoffs(container);
 }
 
 // ============================================
@@ -1060,120 +1085,196 @@ function handleDeleteMatchButton() {
 // 📄 GENERADOR DE CÉDULA PROFESIONAL
 // ============================================
 function printScoresheet(matchId) {
-  const m = globalMatches[matchId];
-  if (!m) return;
+    const m = globalMatches[matchId];
+    if (!m) return;
 
-  const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank');
 
-  let runningScoreHTML = '';
-  for (let i = 1; i <= 80; i++) {
-    runningScoreHTML += `<tr><td>${i}</td><td></td><td></td><td>${i + 80}</td><td></td><td></td></tr>`;
-  }
+    // Generar Conteo Corrido exacto de la imagen (4 columnas de 40 = 160 puntos)
+    let runningScoreHTML = '';
+    for (let i = 1; i <= 40; i++) {
+        runningScoreHTML += `
+            <tr>
+                <td class="num">${i}</td><td></td><td></td>
+                <td class="num">${i + 40}</td><td></td><td></td>
+                <td class="num">${i + 80}</td><td></td><td></td>
+                <td class="num">${i + 120}</td><td></td><td></td>
+            </tr>`;
+    }
 
-  printWindow.document.write(`
-    <html>
-    <head>
-      <title>Hoja Oficial - ${m.localName} vs ${m.visitorName}</title>
-      <style>
-        @page { size: letter; margin: 10mm; }
-        body { font-family: 'Arial Narrow', sans-serif; font-size: 11px; color: #000; line-height: 1.2; }
-        .no-print { background: #eee; padding: 10px; text-align: center; border-bottom: 1px solid #ccc; }
-        .header-table { width: 100%; border-bottom: 2px solid #000; margin-bottom: 10px; }
-        .logo { height: 75px; }
-        .title-box { text-align: center; }
-        .title-box h1 { margin: 0; font-size: 20px; text-transform: uppercase; }
-        .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; border: 1px solid #000; padding: 5px; }
-        .main-layout { display: flex; gap: 10px; }
-        .team-column { flex: 1.2; }
-        .score-column { flex: 0.8; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #000; padding: 3px; text-align: center; }
-        .team-header { background: #000; color: #fff; font-weight: bold; padding: 4px; }
-        .running-score th { font-size: 9px; background: #eee; }
-        .running-score td { height: 14px; font-size: 10px; font-weight: bold; }
-        .running-score td:nth-child(1), .running-score td:nth-child(4) { background: #f0f0f0; width: 25px; }
-        .footer-table { width: 100%; margin-top: 15px; }
-        .sign-box { height: 40px; border-bottom: 1px solid #000; vertical-align: bottom; font-size: 9px; }
-        @media print { .no-print { display: none; } }
-      </style>
-    </head>
-    <body>
-      <div class="no-print">
-        <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">🖨️ IMPRIMIR HOJA DE ANOTACIÓN</button>
-      </div>
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Planilla Oficial - ${m.localName} vs ${m.visitorName}</title>
+            <style>
+                @page { size: letter; margin: 8mm; }
+                body { font-family: 'Arial Narrow', sans-serif; font-size: 10px; color: #000; margin: 0; }
+                
+                /* Encabezado */
+                .header-table { width: 100%; border: none; margin-bottom: 10px; }
+                .logo { height: 70px; width: auto; }
+                .title { font-size: 22px; font-weight: bold; text-align: center; text-transform: uppercase; }
+                
+                .info-bar { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 10px; border: 1.5px solid #000; padding: 5px; margin-bottom: 10px; }
+                
+                /* Layout Principal */
+                .main-layout { display: flex; gap: 10px; }
+                .teams-side { flex: 1.3; }
+                .score-side { flex: 0.7; }
 
-      <table class="header-table">
-        <tr>
-          <td style="border:none; text-align:left;"><img src="${APP_LOGO_URL}" class="logo"></td>
-          <td style="border:none;" class="title-box">
-            <h1>Hoja de Anotación de Baloncesto</h1>
-            <p style="margin:2px 0; font-weight:bold;">DRIBLA, PASA Y ENCESTA</p>
-          </td>
-          <td style="border:none; text-align:right; font-weight:bold;">PARTIDO No. ____</td>
-        </tr>
-      </table>
+                /* Tablas */
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #000; padding: 2px; text-align: center; }
+                .team-box-header { background: #000; color: #fff; font-weight: bold; padding: 5px; text-align: left; font-size: 11px; }
+                
+                /* UI de Tiempos y Faltas */
+                .sub-header-row { display: flex; justify-content: space-between; align-items: center; padding: 4px; border: 1px solid #000; border-top: none; }
+                .timeout-container { display: flex; align-items: center; gap: 3px; }
+                .to-box { width: 14px; height: 14px; border: 1px solid #000; }
+                .team-fouls { font-weight: bold; display: flex; align-items: center; gap: 5px; }
+                .f-num { border: 1px solid #000; padding: 0 4px; font-size: 9px; }
 
-      <div class="info-grid">
-        <div><strong>EQUIPO A:</strong> ${m.localName}</div>
-        <div><strong>FECHA:</strong> ${m.date}</div>
-        <div><strong>LUGAR:</strong> ${globalVenues[m.venueId]?.name || '---'}</div>
-        <div><strong>ETAPA:</strong> ${m.stage ? m.stage.toUpperCase() : 'LIGA'}</div>
-        <div><strong>EQUIPO B:</strong> ${m.visitorName}</div>
-        <div><strong>HORA:</strong> ${m.startTime}</div>
-        <div><strong>RAMA/CAT:</strong> ${categoriesConfig[m.category]?.label || m.category}</div>
-        <div><strong>ÁRBITRO:</strong> ________________</div>
-      </div>
+                /* Tabla de Jugadores */
+                .player-table th { font-size: 8px; background: #eee; }
+                .player-table td { height: 18px; }
 
-      <div class="main-layout">
-        <div class="team-column">
-          <div class="team-header">EQUIPO A: ${m.localName}</div>
-          <table>
-            <thead><tr><th width="10%">#</th><th>NOMBRE DEL JUGADOR</th><th width="30%" colspan="5">FALTAS</th></tr></thead>
-            <tbody>
-              ${Array(12).fill('<tr><td style="height:18px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
-            </tbody>
-            <tr><td colspan="2">FALTAS DE EQUIPO</td><td colspan="5">1P [ ] 2P [ ] 3P [ ] 4P [ ]</td></tr>
-          </table>
+                /* Conteo Corrido */
+                .running-score th { background: #eee; font-size: 9px; }
+                .running-score td { height: 15px; font-size: 10px; }
+                .running-score .num { background: #f0f0f0; font-weight: bold; width: 22px; }
 
-          <div class="team-header" style="margin-top:10px;">EQUIPO B: ${m.visitorName}</div>
-          <table>
-            <thead><tr><th width="10%">#</th><th>NOMBRE DEL JUGADOR</th><th width="30%" colspan="5">FALTAS</th></tr></thead>
-            <tbody>
-              ${Array(12).fill('<tr><td style="height:18px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
-            </tbody>
-            <tr><td colspan="2">FALTAS DE EQUIPO</td><td colspan="5">1P [ ] 2P [ ] 3P [ ] 4P [ ]</td></tr>
-          </table>
-        </div>
+                /* Totales y Firmas */
+                .bottom-grid { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 10px; margin-top: 10px; }
+                .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                .sign-line { border-bottom: 1px solid #000; height: 25px; margin-top: 10px; font-size: 9px; text-align: center; }
+                
+                .period-table td { height: 20px; font-weight: bold; }
 
-        <div class="score-column">
-          <div style="text-align:center; font-weight:bold; border:1px solid #000; border-bottom:none; background:#eee;">PUNTUACIÓN CORRIDA</div>
-          <table class="running-score">
-            <thead><tr><th>Pts</th><th>A</th><th>B</th><th>Pts</th><th>A</th><th>B</th></tr></thead>
-            <tbody>${runningScoreHTML}</tbody>
-          </table>
-        </div>
-      </div>
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="background:#000; color:#fff; padding:10px; text-align:center;">
+                <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer; background:#ff6b00; color:#fff; border:none; border-radius:5px;">🖨️ IMPRIMIR PLANILLA</button>
+            </div>
 
-      <table style="width:400px; margin-top:15px; float:left;">
-        <tr style="background:#eee;"><td>PERIODOS</td><td>1°</td><td>2°</td><td>3°</td><td>4°</td><td>EX</td><td>TOTAL</td></tr>
-        <tr><td>EQUIPO A</td><td style="height:20px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
-        <tr><td>EQUIPO B</td><td style="height:20px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
-      </table>
+            <!-- ENCABEZADO CON TU LOGO -->
+            <table class="header-table">
+                <tr>
+                    <td style="border:none; text-align:left; width:15%;"><img src="${APP_LOGO_URL}" class="logo"></td>
+                    <td style="border:none;" class="title">Planilla de Anotación de Baloncesto</td>
+                    <td style="border:none; text-align:right; width:15%; font-weight:bold;">Juego N°: ____</td>
+                </tr>
+            </table>
 
-      <table class="footer-table">
-        <tr>
-          <td class="sign-box" width="25%">Capitán Equipo A</td>
-          <td class="sign-box" width="25%">Capitán Equipo B</td>
-          <td class="sign-box" width="25%">Anotador / Mesa</td>
-          <td class="sign-box" width="25%">Árbitro Principal</td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
+            <div class="info-bar">
+                <div><strong>Competencia:</strong> ${categoriesConfig[m.category]?.label || m.category}</div>
+                <div><strong>Fecha:</strong> ${m.date}</div>
+                <div><strong>Hora:</strong> ${m.startTime}</div>
+                <div><strong>Lugar:</strong> ${globalVenues[m.venueId]?.name || '---'}</div>
+            </div>
+
+            <div class="main-layout">
+                <div class="teams-side">
+                    <!-- EQUIPO A -->
+                    <div class="team-box-header">EQUIPO A: ${m.localName}</div>
+                    <div class="sub-header-row">
+                        <div class="timeout-container">
+                            Desc. Tiempo: <div class="to-box"></div><div class="to-box"></div> | <div class="to-box"></div><div class="to-box"></div><div class="to-box"></div>
+                        </div>
+                        <div class="team-fouls">
+                            Faltas Colectivas: 
+                            1P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
+                            2P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
+                        </div>
+                    </div>
+                    <table class="player-table">
+                        <thead>
+                            <tr><th width="40">Ficha</th><th>Atletas</th><th width="25">N°</th><th width="25">Ent</th><th colspan="5">Faltas</th></tr>
+                        </thead>
+                        <tbody>
+                            ${Array(12).fill('<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+                        </tbody>
+                        <tr style="background:#eee; font-weight:bold;">
+                            <td colspan="2" style="text-align:left;">Coach:</td><td colspan="7"></td>
+                        </tr>
+                    </table>
+
+                    <!-- EQUIPO B -->
+                    <div class="team-box-header" style="margin-top:10px;">EQUIPO B: ${m.visitorName}</div>
+                    <div class="sub-header-row">
+                        <div class="timeout-container">
+                            Desc. Tiempo: <div class="to-box"></div><div class="to-box"></div> | <div class="to-box"></div><div class="to-box"></div><div class="to-box"></div>
+                        </div>
+                        <div class="team-fouls">
+                            Faltas Colectivas: 
+                            1P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
+                            2P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
+                        </div>
+                    </div>
+                    <table class="player-table">
+                        <thead>
+                            <tr><th width="40">Ficha</th><th>Atletas</th><th width="25">N°</th><th width="25">Ent</th><th colspan="5">Faltas</th></tr>
+                        </thead>
+                        <tbody>
+                            ${Array(12).fill('<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
+                        </tbody>
+                        <tr style="background:#eee; font-weight:bold;">
+                            <td colspan="2" style="text-align:left;">Coach:</td><td colspan="7"></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- CONTEO CORRIDO -->
+                <div class="score-side">
+                    <div style="text-align:center; font-weight:bold; background:#000; color:#fff; border:1px solid #000;">CONTEO CORRIDO</div>
+                    <table class="running-score">
+                        <thead>
+                            <tr><th>A</th><th>B</th><th>A</th><th>B</th><th>A</th><th>B</th><th>A</th><th>B</th></tr>
+                        </thead>
+                        <tbody>
+                            ${runningScoreHTML}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PIE DE PAGINA: PARCIALES Y FIRMAS -->
+            <div class="bottom-grid">
+                <div class="signatures">
+                    <div>
+                        <div class="sign-line"></div>Anotador
+                        <div class="sign-line"></div>Cronometrista
+                    </div>
+                    <div>
+                        <div class="sign-line"></div>Árbitro 1
+                        <div class="sign-line"></div>Árbitro 2
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <div class="sign-line" style="width:100%"></div>
+                        Firma Capitán en caso de protesta
+                    </div>
+                </div>
+
+                <div>
+                    <table class="period-table">
+                        <tr style="background:#eee;"><td>Parciales</td><td>A</td><td>B</td></tr>
+                        <tr><td>Periodo 1</td><td></td><td></td></tr>
+                        <tr><td>Periodo 2</td><td></td><td></td></tr>
+                        <tr><td>Periodo 3</td><td></td><td></td></tr>
+                        <tr><td>Periodo 4</td><td></td><td></td></tr>
+                        <tr style="background:#f0f0f0;"><td>FINAL</td><td>${m.localScore || ''}</td><td>${m.visitorScore || ''}</td></tr>
+                    </table>
+                    <div style="margin-top:5px; border:2px solid #000; padding:5px; text-align:center; font-weight:bold;">
+                        GANADOR: ____________________
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
 }
-window.printScoresheet = printScoresheet;
 
 // ============================================
 // LÓGICA DE SEDES (EDITAR / ELIMINAR)
