@@ -342,7 +342,7 @@ function renderCategories() {
 // RENDER: PLAYOFFS
 // ============================================
 function renderPlayoffs(container) {
-  const playoffs = Object.values(globalMatches).filter(m => m.stage === 'semifinal' || m.stage === 'final');
+  const playoffs = Object.values(globalMatches).filter(m => m && (m.stage === 'semifinal' || m.stage === 'final'));
   
   if (playoffs.length > 0) {
     let html = `<div style="border:2px solid #ff6b00; padding:15px; border-radius:10px; margin-bottom:30px; background:rgba(255,107,0,0.05);">
@@ -351,6 +351,18 @@ function renderPlayoffs(container) {
     playoffs.forEach(m => {
       const score = m.localScore !== undefined ? `${m.localScore} - ${m.visitorScore}` : 'VS';
       const venueName = globalVenues[m.venueId]?.name || 'Sede por definir';
+      // Dentro del playoffs.forEach en renderPlayoffs, añade este bloque de botones al Admin
+let adminBtns = '';
+if (isAdmin) {
+    adminBtns = `
+      <div style="margin-top:10px; display:flex; justify-content:center; gap:10px;">
+        <button onclick="setQuickScore('${Object.keys(globalMatches).find(k => globalMatches[k] === m)}')" style="background:#10b981; color:white; border:none; padding:5px 15px; border-radius:5px; cursor:pointer;">⏱️ Cargar Marcador</button>
+        <button onclick="printScoresheet('${Object.keys(globalMatches).find(k => globalMatches[k] === m)}')" style="background:#334155; color:white; border:none; padding:5px 15px; border-radius:5px; cursor:pointer;">📄</button>
+      </div>`;
+      {adminBtns}
+}
+
+// Y lo agregas al final del bloque HTML del partido
       
       html += `
         <div style="text-align:center; padding:15px; border-bottom:1px solid #444; margin-bottom:10px;">
@@ -439,13 +451,14 @@ function renderMatchesByVenue() {
             : '<span style="color:#888; font-weight: bold;">vs</span>';
 
           let adminButtons = '';
-          if (isAdmin) {
-            adminButtons = `
-              <div style="display:flex; gap:5px; margin-left:10px;">
-                <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
-                <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
-              </div>`;
-          }
+if (isAdmin) {
+  adminButtons = `
+    <div style="display:flex; gap:5px; margin-left:10px;">
+      <button onclick="setQuickScore('${mId}')" title="Cargar Marcador" style="background:#10b981; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">⏱️</button>
+      <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
+      <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
+    </div>`;
+}
 
           dateHtml += `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(255,255,255,0.03); margin-bottom:6px; border-radius:8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
@@ -591,7 +604,23 @@ function renderClassificationTables() {
       avgPts: t.jj > 0 ? t.pts / t.jj : 0,
       avgDif: t.jj > 0 ? t.dif / t.jj : 0,
       avgPF:  t.jj > 0 ? t.pf / t.jj : 0
-    });
+    }
+  );
+   container.innerHTML += `
+      <div style="background:rgba(255,107,0,0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:20px;">
+        <h3 style="margin:0 0 5px 0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
+        ${ruleApplied ? '<p style="font-size:0.75rem; color:#ff6b00; text-align:center;">🛡️ <em>Regla de Oro aplicada: rivales ajustados para evitar mismo grupo en semis.</em></p>' : ''}
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:15px;">
+          <div style="background:#1e2530; padding:12px; border-radius:8px;">
+            <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 1</div>
+            <div style="text-align:center;"><strong>${s1?.name||'---'}</strong> <span style="color:#aaa; margin:0 8px;">vs</span> <strong>${s4?.name||'---'}</strong></div>
+          </div>
+          <div style="background:#1e2530; padding:12px; border-radius:8px;">
+            <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 2</div>
+            <div style="text-align:center;"><strong>${s2?.name||'---'}</strong> <span style="color:#aaa; margin:0 8px;">vs</span> <strong>${s3?.name||'---'}</strong></div>
+          </div>
+        </div>
+      </div>`;
 
     const sortSeeds = (arr) => arr.map(calcAvg).sort((a,b) => b.avgPts - a.avgPts || b.avgDif - a.avgDif || b.avgPF - a.avgPF);
 
@@ -1130,3 +1159,31 @@ function deleteSponsor(sponsorId) {
   }
 }
 window.deleteSponsor = deleteSponsor;
+function setQuickScore(matchId) {
+    const m = globalMatches[matchId];
+    if (!m) return;
+
+    // Pedimos el score del local
+    const scoreL = prompt(`Puntos para LOCAL: ${m.localName}`, m.localScore !== undefined ? m.localScore : "");
+    if (scoreL === null) return; // Si cancela, no hace nada
+
+    // Pedimos el score del visitante
+    const scoreV = prompt(`Puntos para VISITA: ${m.visitorName}`, m.visitorScore !== undefined ? m.visitorScore : "");
+    if (scoreV === null) return; // Si cancela, no hace nada
+
+    // Actualizamos en Firebase
+    const updates = {
+        localScore: parseInt(scoreL),
+        visitorScore: parseInt(scoreV)
+    };
+
+    update(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`), updates)
+        .then(() => {
+            // No hace falta alert, se actualizará solo en tiempo real
+            console.log("Score actualizado");
+        })
+        .catch(err => alert("Error al guardar: " + err));
+}
+
+// Hacerla global para que el botón del HTML la encuentre
+window.setQuickScore = setQuickScore;
