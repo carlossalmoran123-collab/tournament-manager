@@ -24,7 +24,37 @@ body {
   color: var(--text-main);
   min-height: 100vh;
 }
+.sponsor-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    border-top: 2px solid #ff6b00;
+    padding: 10px;
+    text-align: center;
+    z-index: 9999;
+}
 
+.sponsor-footer small {
+    color: #ff6b00;
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+#sponsor-display img {
+    height: 45px;
+    width: auto;
+    max-width: 150px;
+    transition: opacity 0.5s ease-in-out;
+}
+
+/* Para no tapar contenido de la app */
+.app-main-container {
+    padding-bottom: 80px; 
+}
 /* ==========================================================================
    PANTALLA 1: PANEL SELECTOR CENTRALIZADO
    ========================================================================== */
@@ -441,6 +471,15 @@ input:focus, select:focus, textarea:focus {
   background: #111;
   padding: 3px 0;
   border-radius: 3px;
+}
+
+#admin-sponsor-list li:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#admin-sponsor-list span {
+    font-weight: bold;
+    color: #fff;
 }
 
 .btn-delete-match {

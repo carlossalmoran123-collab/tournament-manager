@@ -5,7 +5,7 @@ import { getDatabase, ref, set, push, onValue, remove, update } from "https://ww
 const APP_LOGO_URL = "https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw", // ⚠️ Coloca tu API Key real aquí
+  apiKey: "AIzaSyCxBA6w3Ia4OwYrJidhpXVtR7-2SKnMWXw",
   authDomain: "torneos-basquetbol.firebaseapp.com",
   projectId: "torneos-basquetbol",
   storageBucket: "torneos-basquetbol.appspot.com",
@@ -46,17 +46,14 @@ const categoriesConfig = {
   "sub23-varonil": { label: "👨‍🎓 Sub 23 Varonil", desc: "Categoría Universitaria Avanzada" }
 };
 
-// ============================================
-// INICIALIZACIÓN Y EVENT LISTENERS
-// ============================================
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.getElementById('btnDeleteMatch')?.addEventListener('click', handleDeleteMatchButton);
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
+  document.getElementById('sponsorForm')?.addEventListener('submit', handleSponsorSubmit);
   document.getElementById('btnGoToAdminPrep')?.addEventListener('click', () => switchSection('admin', true));
 
-  // FIX #1 y #2: btnBackToSelector sin el listener duplicado de venueForm
   document.getElementById('btnBackToSelector')?.addEventListener('click', () => {
     document.getElementById('main-app-content').style.display = 'none';
     document.getElementById('competition-selector-screen').style.display = 'flex';
@@ -66,10 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('selectEditVenue')?.addEventListener('change', handleSelectEditVenueChange);
   document.getElementById('btnDeleteVenue')?.addEventListener('click', handleDeleteVenueButton);
   document.getElementById('teamForm')?.addEventListener('submit', handleTeamSubmit);
-
-  // FIX #2: venueForm registrado una sola vez aquí
   document.getElementById('venueForm')?.addEventListener('submit', handleVenueSubmit);
-
   document.getElementById('matchForm')?.addEventListener('submit', handleMatchSubmit);
   document.getElementById('eventForm')?.addEventListener('submit', handleEventSubmit);
   document.getElementById('categoryFormatForm')?.addEventListener('submit', handleFormatSubmit);
@@ -125,6 +119,14 @@ function attachTournamentRealtimeListeners(tournamentId) {
     renderMatchesByVenue();
     renderClassificationTables();
     populateEditVenueDropdown();
+  });
+
+  // Patrocinadores: listener separado para no re-registrar en cada update del torneo
+  // Listener de sponsors: actualiza carrusel público y lista admin
+  onValue(ref(db, `tournaments/${tournamentId}/sponsors`), (snap) => {
+    const data = snap.val();
+    startSponsorRotation(data);
+    renderAdminSponsorList(data);
   });
 }
 
@@ -243,11 +245,10 @@ function populateStaticAdminDropdowns() {
 
   if (teamCatSel)     teamCatSel.innerHTML     = catOptions;
   if (formatCatSel)   formatCatSel.innerHTML   = catOptions;
-  // FIX: siempre actualizar el filtro de categoría (no solo la primera vez)
+  // FIX: siempre actualizar el filtro de categoría
   if (filterCatSel) {
-    const prevVal = filterCatSel.value; // guardar selección actual
+    const prevVal = filterCatSel.value;
     filterCatSel.innerHTML = catOptions;
-    // restaurar la selección si sigue siendo válida
     if (prevVal) filterCatSel.value = prevVal;
   }
   if (editTeamCatSel)  editTeamCatSel.innerHTML  = catOptions;
@@ -378,95 +379,69 @@ function renderMatchesByVenue() {
   venuesArr.forEach(([venueId, venue]) => {
     const block = document.createElement('div');
     block.className = 'venue-role-block';
-    block.style.marginBottom = '40px';
+    block.style.marginBottom = '30px';
 
     const mapsLink = venue.mapsUrl
-       ? `<a href="${venue.mapsUrl}" target="_blank" style="margin-left:15px; font-size:0.85rem; color:#ff6b00; text-decoration:underline;">📍 Ver Ubicación</a>`
+      ? `<a href="${venue.mapsUrl}" target="_blank" style="margin-left:15px; font-size:0.85rem; color:#ff6b00; text-decoration:underline;">📍 Ver Ubicación</a>`
       : '';
 
     block.innerHTML = `
-      <div style="display:flex; align-items:center; border-bottom:3px solid var(--accent-orange); margin-bottom:15px; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px 8px 0 0;">
-        <h3 style="margin:0;">🏢 SEDE: ${venue.name}</h3>
+      <div style="display:flex; align-items:center; border-bottom:2px solid var(--accent-orange); margin-bottom:15px;">
+        <h3 style="margin:0; padding-bottom:5px;">🏢 Sede: ${venue.name}</h3>
         ${mapsLink}
       </div>`;
 
     const vMatches = matchesArr.filter(([_, m]) => m.venueId === venueId);
 
     if (vMatches.length === 0) {
-      block.innerHTML += `<p style="color:#888; font-style:italic; padding:10px;">No hay partidos programados en esta sede.</p>`;
+      block.innerHTML += `<p style="color:#888; font-style:italic; padding:10px;">No hay partidos programados.</p>`;
     } else {
-      // 1. Obtener fechas únicas
-      const uniqueDates = [...new Set(vMatches.map(([_, m]) => m.date))].sort();
+      vMatches.sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
 
-      uniqueDates.forEach(dateString => {
-        // ✅ LÓGICA PARA EL FORMATO DE FECHA (Lunes, 22 de Junio de 2026)
-        const [year, month, day] = dateString.split('-').map(Number);
-        const fechaObj = new Date(year, month - 1, day);
-        
-        const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-        let fechaBonita = fechaObj.toLocaleDateString('es-MX', opciones);
-        
-        // Ponemos la primera letra en mayúscula (ej: lunes -> Lunes)
-        fechaBonita = fechaBonita.charAt(0).toUpperCase() + fechaBonita.slice(1);
+      let matchesHtml = '';
+      vMatches.forEach(([mId, match]) => {
+        const scoreText = (match.localScore !== undefined)
+          ? `<strong>${match.localScore}-${match.visitorScore}</strong>`
+          : 'vs';
 
-        let dateHtml = `
-          <div style="background: #1e2530; color: #ff6b00; padding: 8px 15px; font-weight: bold; font-size: 0.95rem; margin: 20px 0 10px 0; border-radius: 4px; display: flex; align-items: center; border-left: 5px solid #ff6b00;">
-            📅 ${fechaBonita}
-          </div>`;
-
-        const gamesOfDay = vMatches
-          .filter(([_, m]) => m.date === dateString)
-          .sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
-
-        gamesOfDay.forEach(([mId, match]) => {
-          const scoreText = (match.localScore !== undefined)
-              ? `<strong style="color:#ff6b00; font-size: 1.1rem;">${match.localScore} - ${match.visitorScore}</strong>`
-              : '<span style="color:#888; font-weight: bold;">vs</span>';
-
-          let adminButtons = '';
-          if (isAdmin) {
-              adminButtons = `
-                  <div style="display:flex; gap:5px; margin-left:10px;">
-                      <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
-                      <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
-                  </div>`;
-          }
-
-          dateHtml += `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(255,255,255,0.03); margin-bottom:6px; border-radius:8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <div style="min-width:70px;">
-                  <span style="font-size:0.85rem; color:#ff6b00; display:block; font-weight:bold;">⏰ ${match.startTime}</span>
-                </div>
-                <div style="flex:1; text-align:center; padding: 0 10px;">
-                    <span style="font-size:1rem;"><strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong></span>
-                </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <span style="font-size:0.65rem; background:#334155; padding:3px 8px; border-radius:4px; color:#aaa; text-transform: uppercase;">
-                    ${categoriesConfig[match.category]?.label || match.category}
-                  </span>
-                  ${adminButtons}
-                </div>
+        let adminButtons = '';
+        if (isAdmin) {
+          adminButtons = `
+            <div style="display:flex; gap:5px; margin-left:10px;">
+              <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
+              <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
             </div>`;
-        });
-        
-        block.innerHTML += dateHtml;
+        }
+
+        matchesHtml += `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
+            <span style="font-size:0.9rem; color:#ccc; min-width:55px;">⏰ ${match.startTime}</span>
+            <span style="flex:1; text-align:center;">
+              <strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong>
+            </span>
+            <span style="font-size:0.7rem; background:#334155; padding:2px 6px; border-radius:4px; margin-left:10px; color:#aaa;">
+              ${categoriesConfig[match.category]?.label || ''}
+            </span>
+            ${adminButtons}
+          </div>`;
       });
+      block.innerHTML += matchesHtml;
     }
     container.appendChild(block);
   });
 
-  if (typeof renderPlayoffs === 'function') renderPlayoffs(container);
+  renderPlayoffs(container);
 }
 
 // ============================================
 // RENDER: CLASIFICACIÓN
 // ============================================
 function renderClassificationTables() {
-  const container      = document.getElementById('classificationTablesContainer');
-  const filterEl       = document.getElementById('classCategoryFilter');
+  const container = document.getElementById('classificationTablesContainer');
+  const filterEl  = document.getElementById('classCategoryFilter');
   if (!container || !filterEl) return;
 
-  // FIX: si no hay categoría seleccionada, seleccionar la primera disponible automáticamente
+  // Auto-seleccionar primera categoría si no hay ninguna seleccionada
   if (!filterEl.value && filterEl.options.length > 0) {
     filterEl.value = filterEl.options[0].value;
   }
@@ -475,14 +450,12 @@ function renderClassificationTables() {
   if (!selectedCat) return;
   container.innerHTML = '';
 
-  // FIX: auto-detectar formato por grupos si algún equipo tiene groupAssigned
-  //      en lugar de depender solo de globalFormats (que puede no estar configurado)
+  // Auto-detectar formato: grupos si algún equipo tiene groupAssigned, sino todos-contra-todos
   const teamsInCat = Object.values(globalTeams).filter(t => t && t.categoryRegistered === selectedCat);
   const hasGroups  = teamsInCat.some(t => t.groupAssigned && t.groupAssigned.trim() !== '');
   const savedFormat = globalFormats[selectedCat]?.type;
-  // Prioridad: 1) formato guardado en admin, 2) auto-detectar por grupos asignados
-  const formatType = savedFormat || (hasGroups ? 'grupos' : 'todos-contra-todos');
-  const formatConfig = { type: formatType };
+  const formatConfig = { type: savedFormat || (hasGroups ? 'grupos' : 'todos-contra-todos') };
+
   const stats = {};
 
   Object.entries(globalTeams).forEach(([id, t]) => {
@@ -522,12 +495,103 @@ function renderClassificationTables() {
     t.avgPF  = t.jj > 0 ? (t.pf  / t.jj) : 0;
   });
 
-  const sortTeams = (arr) => arr.sort((a, b) =>
-    b.avgPts - a.avgPts || b.avgDif - a.avgDif || b.avgPF - a.avgPF
-  );
+  // ─────────────────────────────────────────────────────────────────────────
+  // CRITERIOS DE DESEMPATE FIBA
+  // 1° Promedio de puntos (pts / JJ)  — en partidos de TODOS contra todos
+  // 2° Diferencia de puntos (pf-pc) / JJ  — en partidos de todos contra todos
+  // 3° Si hay 2 o más equipos igualados: mini-clasificación SOLO entre ellos
+  //    3a. Puntos obtenidos entre ellos
+  //    3b. Diferencia de puntos entre ellos
+  //    3c. Puntos anotados entre ellos
+  // 4° Promedio de puntos anotados general (pf / JJ)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Calcula estadísticas de los enfrentamientos DIRECTOS entre un subgrupo
+  const calcHeadToHead = (teamIds) => {
+    const h2h = {};
+    teamIds.forEach(id => { h2h[id] = { pts: 0, pf: 0, pc: 0, jj: 0 }; });
+
+    Object.values(globalMatches).forEach(m => {
+      if (!m || m.category !== selectedCat || m.stage !== 'regular' || m.localScore === undefined) return;
+      const locInGroup = teamIds.includes(m.localId);
+      const visInGroup = teamIds.includes(m.visitorId);
+      if (!locInGroup || !visInGroup) return; // solo partidos ENTRE ellos
+
+      const locS = parseInt(m.localScore) || 0;
+      const visS = parseInt(m.visitorScore) || 0;
+
+      h2h[m.localId].jj++;  h2h[m.visitorId].jj++;
+      h2h[m.localId].pf  += locS; h2h[m.localId].pc  += visS;
+      h2h[m.visitorId].pf += visS; h2h[m.visitorId].pc += locS;
+
+      if (locS > visS) {
+        h2h[m.localId].pts   += 2;
+        h2h[m.visitorId].pts += 1;
+      } else {
+        h2h[m.visitorId].pts += 2;
+        h2h[m.localId].pts   += 1;
+      }
+    });
+    return h2h;
+  };
+
+  // Comparador principal con desempate FIBA
+  const compareTeams = (a, b) => {
+    // 1° Promedio puntos general
+    const diffAvgPts = b.avgPts - a.avgPts;
+    if (Math.abs(diffAvgPts) > 0.0001) return diffAvgPts;
+    // 2° Diferencia general
+    const diffAvgDif = b.avgDif - a.avgDif;
+    if (Math.abs(diffAvgDif) > 0.0001) return diffAvgDif;
+    // 3° Promedio puntos anotados general
+    const diffAvgPF = b.avgPF - a.avgPF;
+    if (Math.abs(diffAvgPF) > 0.0001) return diffAvgPF;
+    return 0;
+  };
+
+  // Ordenar con desempate FIBA por enfrentamiento directo cuando hay empate
+  const sortTeams = (arr) => {
+    // Primero un sort general
+    arr.sort(compareTeams);
+
+    // Detectar grupos de equipos empatados y resolver con H2H
+    let i = 0;
+    while (i < arr.length) {
+      let j = i + 1;
+      while (j < arr.length && compareTeams(arr[i], arr[j]) === 0) j++;
+
+      if (j - i > 1) {
+        // Hay empate entre arr[i..j-1] → aplicar mini-clasificación H2H
+        const tiedSlice = arr.slice(i, j);
+        const tiedIds   = tiedSlice.map(t => t.id);
+        const h2h       = calcHeadToHead(tiedIds);
+
+        tiedSlice.sort((a, b) => {
+          const ha = h2h[a.id], hb = h2h[b.id];
+          if (!ha || !hb) return 0;
+          // 3a. Puntos en H2H
+          const ptsA = ha.jj > 0 ? ha.pts / ha.jj : 0;
+          const ptsB = hb.jj > 0 ? hb.pts / hb.jj : 0;
+          if (Math.abs(ptsB - ptsA) > 0.0001) return ptsB - ptsA;
+          // 3b. Diferencia en H2H
+          const difA = ha.jj > 0 ? (ha.pf - ha.pc) / ha.jj : 0;
+          const difB = hb.jj > 0 ? (hb.pf - hb.pc) / hb.jj : 0;
+          if (Math.abs(difB - difA) > 0.0001) return difB - difA;
+          // 3c. Puntos anotados en H2H
+          const pfA = ha.jj > 0 ? ha.pf / ha.jj : 0;
+          const pfB = hb.jj > 0 ? hb.pf / hb.jj : 0;
+          return pfB - pfA;
+        });
+
+        // Reemplazar el slice ordenado en el array original
+        for (let k = 0; k < tiedSlice.length; k++) arr[i + k] = tiedSlice[k];
+      }
+      i = j;
+    }
+    return arr;
+  };
 
   if (formatConfig.type === 'grupos') {
-    // ── Construir mapa de grupos ──────────────────────────────────────────────
     const groupsMap = {};
     Object.values(stats).forEach(t => {
       if (!groupsMap[t.group]) groupsMap[t.group] = [];
@@ -539,20 +603,13 @@ function renderClassificationTables() {
     const primerosLugares = [];
     const segundosLugares = [];
 
-    // Criterios de desempate (usados en toda la lógica de cruces):
-    // 1° Promedio de puntos (pts / JJ)
-    // 2° Diferencia de puntos (pf - pc) / JJ
-    // 3° Promedio de puntos anotados (pf / JJ)
-    // 4° Resultado del enfrentamiento directo (se aplica en tabla si aplica)
-
-    // Renderizar tabla de cada grupo con leyenda de criterios
     groupNames.forEach(groupName => {
       const sorted = sortTeams(groupsMap[groupName]);
       container.innerHTML +=
         `<h3 style="color:var(--accent-orange); margin-top:20px;">
            Grupo: ${groupName.toUpperCase()}
            <span style="font-size:0.7rem; color:#aaa; font-weight:normal; margin-left:10px;">
-             Desempate: 1°Prom.Pts · 2°Dif.Puntos · 3°Prom.Anotados
+             Desempate: 1°Prom.Pts · 2°Dif.Puntos · 3°Prom.Anotados · Empate→ FIBA H2H
            </span>
          </h3>` + generateTableHtml(sorted);
       if (sorted.length > 0) primerosLugares.push({ ...sorted[0], groupOrigin: groupName });
@@ -561,14 +618,13 @@ function renderClassificationTables() {
 
     // ── 2 GRUPOS → Semis: 1°A vs 2°B  y  1°B vs 2°A ──────────────────────────
     if (numGroups === 2) {
-      const [p1, p2] = primerosLugares;  // 1° de cada grupo
-      const [seg1, seg2] = segundosLugares;  // 2° de cada grupo
+      const [p1, p2]     = primerosLugares;
+      const [seg1, seg2] = segundosLugares;
 
-      // Cruce clásico: 1° de un grupo vs 2° del otro
-      const semi1Local   = p1;   // 1° Grupo A
-      const semi1Visitor = seg2; // 2° Grupo B
-      const semi2Local   = p2;   // 1° Grupo B
-      const semi2Visitor = seg1; // 2° Grupo A
+      const semi1Local   = p1;
+      const semi1Visitor = seg2;
+      const semi2Local   = p2;
+      const semi2Visitor = seg1;
 
       const crit2dos = segundosLugares.map(t => `
         <tr>
@@ -582,11 +638,8 @@ function renderClassificationTables() {
         </tr>`).join('');
 
       container.innerHTML += `
-        <!-- Comparativa 2° lugares -->
         <div style="background:rgba(30,37,48,0.9); padding:15px; border:1px solid #334155; border-radius:10px; margin-top:20px;">
-          <h4 style="color:#aaa; margin:0 0 10px 0; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px;">
-            🥈 Segundos Lugares
-          </h4>
+          <h4 style="color:#aaa; margin:0 0 10px 0; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px;">🥈 Segundos Lugares</h4>
           <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:center;">
               <thead>
@@ -598,17 +651,11 @@ function renderClassificationTables() {
               <tbody>${crit2dos}</tbody>
             </table>
           </div>
-          <p style="color:#888; font-size:0.72rem; margin:8px 0 0 0;">
-            Cruce: 1° de cada grupo enfrenta al 2° del grupo contrario
-          </p>
+          <p style="color:#888; font-size:0.72rem; margin:8px 0 0 0;">Cruce: 1° de cada grupo enfrenta al 2° del grupo contrario</p>
         </div>
-
-        <!-- Cruces de semifinales -->
         <div style="background:rgba(255,107,0,0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:20px;">
           <h3 style="margin:0 0 5px 0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
-          <p style="text-align:center; color:#aaa; font-size:0.8rem; margin:0 0 15px 0;">
-            Criterio: 1° de cada grupo vs 2° del grupo contrario
-          </p>
+          <p style="text-align:center; color:#aaa; font-size:0.8rem; margin:0 0 15px 0;">Criterio: 1° de cada grupo vs 2° del grupo contrario</p>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
             <div style="background:#1e2530; padding:12px; border-radius:8px;">
               <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 1</div>
@@ -642,11 +689,10 @@ function renderClassificationTables() {
 
     // ── 3 GRUPOS → El mejor 2° pasa a semis (4 equipos) ──────────────────────
     } else if (numGroups === 3) {
-      const mejorSegundo      = sortTeams([...segundosLugares])[0];
-      const clasificados      = sortTeams([...primerosLugares, mejorSegundo]);
-      let [s1, s2, s3, s4]   = clasificados;
+      const mejorSegundo    = sortTeams([...segundosLugares])[0];
+      const clasificados    = sortTeams([...primerosLugares, mejorSegundo]);
+      let [s1, s2, s3, s4]  = clasificados;
 
-      // Regla de Oro: el 1° no puede enfrentar al equipo de su mismo grupo en semis
       let avisoReglaOro = "";
       if (s1 && s4 && s1.groupOrigin === s4.groupOrigin) {
         [s3, s4] = [s4, s3];
@@ -655,7 +701,6 @@ function renderClassificationTables() {
         </div>`;
       }
 
-      // Criterios de clasificación del mejor 2°
       const criteriosMejorSegundo = segundosLugares.map(t =>
         `<tr>
           <td style="padding:4px 8px; text-align:left;"><strong>${t.name}</strong> <span style="color:#aaa; font-size:0.75rem;">(${t.groupOrigin?.toUpperCase()})</span></td>
@@ -672,11 +717,8 @@ function renderClassificationTables() {
       ).join('');
 
       container.innerHTML += `
-        <!-- Comparativa mejor 2° -->
         <div style="background:rgba(30,37,48,0.9); padding:15px; border:1px solid #334155; border-radius:10px; margin-top:20px;">
-          <h4 style="color:#aaa; margin:0 0 10px 0; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px;">
-            🥈 Comparativa de 2° lugares — El mejor avanza
-          </h4>
+          <h4 style="color:#aaa; margin:0 0 10px 0; font-size:0.85rem; text-transform:uppercase; letter-spacing:1px;">🥈 Comparativa de 2° lugares — El mejor avanza</h4>
           <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:center;">
               <thead>
@@ -689,16 +731,12 @@ function renderClassificationTables() {
             </table>
           </div>
           <p style="color:#888; font-size:0.72rem; margin:8px 0 0 0;">
-            Criterios de desempate entre 2° lugares: 1°Puntos acumulados · 2°Diferencia de puntos · 3°Puntos anotados
+            Criterios: 1°Puntos acumulados · 2°Diferencia de puntos · 3°Puntos anotados
           </p>
         </div>
-
-        <!-- Cruces de semifinales -->
         <div style="background:rgba(255,107,0,0.1); padding:20px; border:2px solid #ff6b00; border-radius:10px; margin-top:20px;">
           <h3 style="margin:0 0 5px 0; color:#ff6b00; text-align:center;">🏆 CRUCES DE SEMIFINALES</h3>
-          <p style="text-align:center; color:#aaa; font-size:0.8rem; margin:0 0 15px 0;">
-            Criterio de cruce: 1° vs 4° · 2° vs 3° (por rendimiento general)
-          </p>
+          <p style="text-align:center; color:#aaa; font-size:0.8rem; margin:0 0 15px 0;">Criterio de cruce: 1° vs 4° · 2° vs 3° (por rendimiento general)</p>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
             <div style="background:#1e2530; padding:12px; border-radius:8px;">
               <div style="font-size:0.7rem; color:#ff6b00; text-transform:uppercase; margin-bottom:6px;">⚔️ Semifinal 1</div>
@@ -730,10 +768,9 @@ function renderClassificationTables() {
 
     // ── 4+ GRUPOS → Semis con los 4 primeros lugares ──────────────────────────
     } else if (numGroups >= 4) {
-      const clasificados    = sortTeams([...primerosLugares]);
-      let [s1, s2, s3, s4]  = clasificados;
+      const clasificados   = sortTeams([...primerosLugares]);
+      let [s1, s2, s3, s4] = clasificados;
 
-      // Regla de Oro: s1 no puede ir con s4 si son del mismo grupo
       let avisoReglaOro = "";
       if (s1 && s4 && s1.groupOrigin === s4.groupOrigin) {
         [s3, s4] = [s4, s3];
@@ -856,26 +893,20 @@ function handleTeamSubmit(e) {
     });
 }
 
-// FIX #1: handleVenueSubmit definida UNA SOLA VEZ (versión completa con .catch)
 function handleVenueSubmit(e) {
   e.preventDefault();
   if (!currentTournamentId) return alert("Selecciona un torneo primero.");
-
   const name    = document.getElementById('venueName').value.trim();
   const address = document.getElementById('venueAddress').value.trim();
   const mapsUrl = document.getElementById('venueMapsUrl').value.trim();
-
-  push(ref(db, `tournaments/${currentTournamentId}/venues`), {
-    name,
-    address,
-    mapsUrl
-  }).then(() => {
-    alert("✅ Sede guardada correctamente.");
-    document.getElementById('venueForm').reset();
-  }).catch(error => {
-    console.error("Error al guardar sede:", error);
-    alert("Hubo un error al guardar la sede.");
-  });
+  push(ref(db, `tournaments/${currentTournamentId}/venues`), { name, address, mapsUrl })
+    .then(() => {
+      alert("✅ Sede guardada correctamente.");
+      document.getElementById('venueForm').reset();
+    }).catch(error => {
+      console.error("Error al guardar sede:", error);
+      alert("Hubo un error al guardar la sede.");
+    });
 }
 
 function handleMatchSubmit(e) {
@@ -885,9 +916,7 @@ function handleMatchSubmit(e) {
   const lId   = document.getElementById('selectLocal').value;
   const vId   = document.getElementById('selectVisitor').value;
   const stage = document.getElementById('matchStage').value;
-
   if (!lId || !vId || lId === vId) return alert("Selecciona equipos diferentes");
-
   push(ref(db, `tournaments/${currentTournamentId}/matches`), {
     category:    cat,
     stage:       stage,
@@ -914,6 +943,58 @@ function handleEventSubmit(e) {
     alert("¡Torneo maestro creado!");
     document.getElementById('eventForm').reset();
   });
+}
+
+// ============================================
+// PATROCINADORES
+// ============================================
+let sponsorInterval      = null;
+let currentSponsorIndex  = 0;
+let activeSponsors       = [];
+
+function handleSponsorSubmit(e) {
+  e.preventDefault();
+  if (!currentTournamentId) return alert("Selecciona un torneo.");
+  const data = {
+    name: document.getElementById('sponsorName').value.trim(),
+    logo: document.getElementById('sponsorLogo').value.trim(),
+    link: document.getElementById('sponsorLink').value.trim()
+  };
+  push(ref(db, `tournaments/${currentTournamentId}/sponsors`), data).then(() => {
+    alert("✅ Patrocinador añadido.");
+    e.target.reset();
+  });
+}
+
+function startSponsorRotation(sponsorsData) {
+  activeSponsors = Object.entries(sponsorsData || {}).map(([id, s]) => ({ ...s, id }));
+  if (sponsorInterval) clearInterval(sponsorInterval);
+
+  const display = document.getElementById('sponsor-display');
+  if (!display) return;
+
+  if (activeSponsors.length === 0) {
+    display.innerHTML = "<p style='color:#555;'>Espacio disponible para publicidad</p>";
+    return;
+  }
+
+  currentSponsorIndex = 0;
+
+  const updateDisplay = () => {
+    const s = activeSponsors[currentSponsorIndex];
+    display.style.opacity = '0';
+    setTimeout(() => {
+      display.innerHTML = `
+        <a href="${s.link || '#'}" target="_blank">
+          <img src="${s.logo}" alt="${s.name}" title="${s.name}" style="max-height:80px; max-width:200px; object-fit:contain;">
+        </a>`;
+      display.style.opacity = '1';
+    }, 500);
+    currentSponsorIndex = (currentSponsorIndex + 1) % activeSponsors.length;
+  };
+
+  updateDisplay();
+  sponsorInterval = setInterval(updateDisplay, 5000);
 }
 
 // ============================================
@@ -997,15 +1078,12 @@ function handleSelectEditMatchChange(e) {
   const matchId = e.target.value;
   if (!matchId || !globalMatches[matchId]) return;
   const m = globalMatches[matchId];
-
   document.getElementById('editMatchDate').value      = m.date      || '';
   document.getElementById('editMatchStartTime').value = m.startTime || '';
   document.getElementById('editMatchVenue').value     = m.venueId   || '';
   document.getElementById('editMatchCategory').value  = m.category  || '';
   document.getElementById('editMatchStage').value     = m.stage     || 'regular';
-
   updateEditMatchTeamsDropdowns();
-
   setTimeout(() => {
     document.getElementById('editSelectLocal').value   = m.localId;
     document.getElementById('editSelectVisitor').value = m.visitorId;
@@ -1017,7 +1095,6 @@ function updateEditMatchTeamsDropdowns() {
   const localSel   = document.getElementById('editSelectLocal');
   const visitorSel = document.getElementById('editSelectVisitor');
   if (!localSel || !visitorSel) return;
-
   localSel.innerHTML = visitorSel.innerHTML = '<option value="">-- Selecciona --</option>';
   Object.entries(globalTeams).forEach(([id, t]) => {
     if (t && t.categoryRegistered === selectedCategory) {
@@ -1031,18 +1108,14 @@ function updateEditMatchTeamsDropdowns() {
 function handleEditMatchSubmit(e) {
   e.preventDefault();
   if (!currentTournamentId) return;
-
   const matchId = document.getElementById('selectEditMatch').value;
   if (!matchId) return alert("Selecciona un partido para editar.");
-
   const cat   = document.getElementById('editMatchCategory').value;
   const lId   = document.getElementById('editSelectLocal').value;
   const vId   = document.getElementById('editSelectVisitor').value;
   const stage = document.getElementById('editMatchStage').value;
-
   if (!lId || !vId || lId === vId) return alert("Selecciona equipos diferentes");
-
-  const updatedData = {
+  update(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`), {
     category:    cat,
     stage:       stage,
     localId:     lId,
@@ -1052,17 +1125,13 @@ function handleEditMatchSubmit(e) {
     date:        document.getElementById('editMatchDate').value,
     startTime:   document.getElementById('editMatchStartTime').value,
     venueId:     document.getElementById('editMatchVenue').value
-  };
-
-  update(ref(db, `tournaments/${currentTournamentId}/matches/${matchId}`), updatedData)
-    .then(() => {
-      alert("✅ Partido actualizado correctamente.");
-      document.getElementById('editMatchForm').reset();
-    })
-    .catch(err => {
-      console.error(err);
-      alert("Error al actualizar el partido.");
-    });
+  }).then(() => {
+    alert("✅ Partido actualizado correctamente.");
+    document.getElementById('editMatchForm').reset();
+  }).catch(err => {
+    console.error(err);
+    alert("Error al actualizar el partido.");
+  });
 }
 
 function handleDeleteMatchButton() {
@@ -1085,196 +1154,98 @@ function handleDeleteMatchButton() {
 // 📄 GENERADOR DE CÉDULA PROFESIONAL
 // ============================================
 function printScoresheet(matchId) {
-    const m = globalMatches[matchId];
-    if (!m) return;
-
-    const printWindow = window.open('', '_blank');
-
-    // Generar Conteo Corrido exacto de la imagen (4 columnas de 40 = 160 puntos)
-    let runningScoreHTML = '';
-    for (let i = 1; i <= 40; i++) {
-        runningScoreHTML += `
-            <tr>
-                <td class="num">${i}</td><td></td><td></td>
-                <td class="num">${i + 40}</td><td></td><td></td>
-                <td class="num">${i + 80}</td><td></td><td></td>
-                <td class="num">${i + 120}</td><td></td><td></td>
-            </tr>`;
-    }
-
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Planilla Oficial - ${m.localName} vs ${m.visitorName}</title>
-            <style>
-                @page { size: letter; margin: 8mm; }
-                body { font-family: 'Arial Narrow', sans-serif; font-size: 10px; color: #000; margin: 0; }
-                
-                /* Encabezado */
-                .header-table { width: 100%; border: none; margin-bottom: 10px; }
-                .logo { height: 70px; width: auto; }
-                .title { font-size: 22px; font-weight: bold; text-align: center; text-transform: uppercase; }
-                
-                .info-bar { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 10px; border: 1.5px solid #000; padding: 5px; margin-bottom: 10px; }
-                
-                /* Layout Principal */
-                .main-layout { display: flex; gap: 10px; }
-                .teams-side { flex: 1.3; }
-                .score-side { flex: 0.7; }
-
-                /* Tablas */
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #000; padding: 2px; text-align: center; }
-                .team-box-header { background: #000; color: #fff; font-weight: bold; padding: 5px; text-align: left; font-size: 11px; }
-                
-                /* UI de Tiempos y Faltas */
-                .sub-header-row { display: flex; justify-content: space-between; align-items: center; padding: 4px; border: 1px solid #000; border-top: none; }
-                .timeout-container { display: flex; align-items: center; gap: 3px; }
-                .to-box { width: 14px; height: 14px; border: 1px solid #000; }
-                .team-fouls { font-weight: bold; display: flex; align-items: center; gap: 5px; }
-                .f-num { border: 1px solid #000; padding: 0 4px; font-size: 9px; }
-
-                /* Tabla de Jugadores */
-                .player-table th { font-size: 8px; background: #eee; }
-                .player-table td { height: 18px; }
-
-                /* Conteo Corrido */
-                .running-score th { background: #eee; font-size: 9px; }
-                .running-score td { height: 15px; font-size: 10px; }
-                .running-score .num { background: #f0f0f0; font-weight: bold; width: 22px; }
-
-                /* Totales y Firmas */
-                .bottom-grid { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 10px; margin-top: 10px; }
-                .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-                .sign-line { border-bottom: 1px solid #000; height: 25px; margin-top: 10px; font-size: 9px; text-align: center; }
-                
-                .period-table td { height: 20px; font-weight: bold; }
-
-                @media print { .no-print { display: none; } }
-            </style>
-        </head>
-        <body>
-            <div class="no-print" style="background:#000; color:#fff; padding:10px; text-align:center;">
-                <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer; background:#ff6b00; color:#fff; border:none; border-radius:5px;">🖨️ IMPRIMIR PLANILLA</button>
-            </div>
-
-            <!-- ENCABEZADO CON TU LOGO -->
-            <table class="header-table">
-                <tr>
-                    <td style="border:none; text-align:left; width:15%;"><img src="${APP_LOGO_URL}" class="logo"></td>
-                    <td style="border:none;" class="title">Planilla de Anotación de Baloncesto</td>
-                    <td style="border:none; text-align:right; width:15%; font-weight:bold;">Juego N°: ____</td>
-                </tr>
-            </table>
-
-            <div class="info-bar">
-                <div><strong>Competencia:</strong> ${categoriesConfig[m.category]?.label || m.category}</div>
-                <div><strong>Fecha:</strong> ${m.date}</div>
-                <div><strong>Hora:</strong> ${m.startTime}</div>
-                <div><strong>Lugar:</strong> ${globalVenues[m.venueId]?.name || '---'}</div>
-            </div>
-
-            <div class="main-layout">
-                <div class="teams-side">
-                    <!-- EQUIPO A -->
-                    <div class="team-box-header">EQUIPO A: ${m.localName}</div>
-                    <div class="sub-header-row">
-                        <div class="timeout-container">
-                            Desc. Tiempo: <div class="to-box"></div><div class="to-box"></div> | <div class="to-box"></div><div class="to-box"></div><div class="to-box"></div>
-                        </div>
-                        <div class="team-fouls">
-                            Faltas Colectivas: 
-                            1P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
-                            2P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
-                        </div>
-                    </div>
-                    <table class="player-table">
-                        <thead>
-                            <tr><th width="40">Ficha</th><th>Atletas</th><th width="25">N°</th><th width="25">Ent</th><th colspan="5">Faltas</th></tr>
-                        </thead>
-                        <tbody>
-                            ${Array(12).fill('<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
-                        </tbody>
-                        <tr style="background:#eee; font-weight:bold;">
-                            <td colspan="2" style="text-align:left;">Coach:</td><td colspan="7"></td>
-                        </tr>
-                    </table>
-
-                    <!-- EQUIPO B -->
-                    <div class="team-box-header" style="margin-top:10px;">EQUIPO B: ${m.visitorName}</div>
-                    <div class="sub-header-row">
-                        <div class="timeout-container">
-                            Desc. Tiempo: <div class="to-box"></div><div class="to-box"></div> | <div class="to-box"></div><div class="to-box"></div><div class="to-box"></div>
-                        </div>
-                        <div class="team-fouls">
-                            Faltas Colectivas: 
-                            1P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
-                            2P <span class="f-num">1</span><span class="f-num">2</span><span class="f-num">3</span><span class="f-num">4</span>
-                        </div>
-                    </div>
-                    <table class="player-table">
-                        <thead>
-                            <tr><th width="40">Ficha</th><th>Atletas</th><th width="25">N°</th><th width="25">Ent</th><th colspan="5">Faltas</th></tr>
-                        </thead>
-                        <tbody>
-                            ${Array(12).fill('<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
-                        </tbody>
-                        <tr style="background:#eee; font-weight:bold;">
-                            <td colspan="2" style="text-align:left;">Coach:</td><td colspan="7"></td>
-                        </tr>
-                    </table>
-                </div>
-
-                <!-- CONTEO CORRIDO -->
-                <div class="score-side">
-                    <div style="text-align:center; font-weight:bold; background:#000; color:#fff; border:1px solid #000;">CONTEO CORRIDO</div>
-                    <table class="running-score">
-                        <thead>
-                            <tr><th>A</th><th>B</th><th>A</th><th>B</th><th>A</th><th>B</th><th>A</th><th>B</th></tr>
-                        </thead>
-                        <tbody>
-                            ${runningScoreHTML}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- PIE DE PAGINA: PARCIALES Y FIRMAS -->
-            <div class="bottom-grid">
-                <div class="signatures">
-                    <div>
-                        <div class="sign-line"></div>Anotador
-                        <div class="sign-line"></div>Cronometrista
-                    </div>
-                    <div>
-                        <div class="sign-line"></div>Árbitro 1
-                        <div class="sign-line"></div>Árbitro 2
-                    </div>
-                    <div style="grid-column: span 2;">
-                        <div class="sign-line" style="width:100%"></div>
-                        Firma Capitán en caso de protesta
-                    </div>
-                </div>
-
-                <div>
-                    <table class="period-table">
-                        <tr style="background:#eee;"><td>Parciales</td><td>A</td><td>B</td></tr>
-                        <tr><td>Periodo 1</td><td></td><td></td></tr>
-                        <tr><td>Periodo 2</td><td></td><td></td></tr>
-                        <tr><td>Periodo 3</td><td></td><td></td></tr>
-                        <tr><td>Periodo 4</td><td></td><td></td></tr>
-                        <tr style="background:#f0f0f0;"><td>FINAL</td><td>${m.localScore || ''}</td><td>${m.visitorScore || ''}</td></tr>
-                    </table>
-                    <div style="margin-top:5px; border:2px solid #000; padding:5px; text-align:center; font-weight:bold;">
-                        GANADOR: ____________________
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
+  const m = globalMatches[matchId];
+  if (!m) return;
+  const printWindow = window.open('', '_blank');
+  let runningScoreHTML = '';
+  for (let i = 1; i <= 80; i++) {
+    runningScoreHTML += `<tr><td>${i}</td><td></td><td></td><td>${i + 80}</td><td></td><td></td></tr>`;
+  }
+  printWindow.document.write(`
+    <html><head>
+      <title>Hoja Oficial - ${m.localName} vs ${m.visitorName}</title>
+      <style>
+        @page { size: letter; margin: 10mm; }
+        body { font-family: 'Arial Narrow', sans-serif; font-size: 11px; color: #000; line-height: 1.2; }
+        .no-print { background: #eee; padding: 10px; text-align: center; border-bottom: 1px solid #ccc; }
+        .header-table { width: 100%; border-bottom: 2px solid #000; margin-bottom: 10px; }
+        .logo { height: 75px; }
+        .title-box { text-align: center; }
+        .title-box h1 { margin: 0; font-size: 20px; text-transform: uppercase; }
+        .info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; border: 1px solid #000; padding: 5px; }
+        .main-layout { display: flex; gap: 10px; }
+        .team-column { flex: 1.2; }
+        .score-column { flex: 0.8; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #000; padding: 3px; text-align: center; }
+        .team-header { background: #000; color: #fff; font-weight: bold; padding: 4px; }
+        .running-score th { font-size: 9px; background: #eee; }
+        .running-score td { height: 14px; font-size: 10px; font-weight: bold; }
+        .running-score td:nth-child(1), .running-score td:nth-child(4) { background: #f0f0f0; width: 25px; }
+        .footer-table { width: 100%; margin-top: 15px; }
+        .sign-box { height: 40px; border-bottom: 1px solid #000; vertical-align: bottom; font-size: 9px; }
+        @media print { .no-print { display: none; } }
+      </style>
+    </head><body>
+      <div class="no-print">
+        <button onclick="window.print()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">🖨️ IMPRIMIR HOJA DE ANOTACIÓN</button>
+      </div>
+      <table class="header-table"><tr>
+        <td style="border:none; text-align:left;"><img src="${APP_LOGO_URL}" class="logo"></td>
+        <td style="border:none;" class="title-box">
+          <h1>Hoja de Anotación de Baloncesto</h1>
+          <p style="margin:2px 0; font-weight:bold;">DRIBLA, PASA Y ENCESTA</p>
+        </td>
+        <td style="border:none; text-align:right; font-weight:bold;">PARTIDO No. ____</td>
+      </tr></table>
+      <div class="info-grid">
+        <div><strong>EQUIPO A:</strong> ${m.localName}</div>
+        <div><strong>FECHA:</strong> ${m.date}</div>
+        <div><strong>LUGAR:</strong> ${globalVenues[m.venueId]?.name || '---'}</div>
+        <div><strong>ETAPA:</strong> ${m.stage ? m.stage.toUpperCase() : 'LIGA'}</div>
+        <div><strong>EQUIPO B:</strong> ${m.visitorName}</div>
+        <div><strong>HORA:</strong> ${m.startTime}</div>
+        <div><strong>RAMA/CAT:</strong> ${categoriesConfig[m.category]?.label || m.category}</div>
+        <div><strong>ÁRBITRO:</strong> ________________</div>
+      </div>
+      <div class="main-layout">
+        <div class="team-column">
+          <div class="team-header">EQUIPO A: ${m.localName}</div>
+          <table>
+            <thead><tr><th width="10%">#</th><th>NOMBRE DEL JUGADOR</th><th width="30%" colspan="5">FALTAS</th></tr></thead>
+            <tbody>${Array(12).fill('<tr><td style="height:18px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</tbody>
+            <tr><td colspan="2">FALTAS DE EQUIPO</td><td colspan="5">1P [ ] 2P [ ] 3P [ ] 4P [ ]</td></tr>
+          </table>
+          <div class="team-header" style="margin-top:10px;">EQUIPO B: ${m.visitorName}</div>
+          <table>
+            <thead><tr><th width="10%">#</th><th>NOMBRE DEL JUGADOR</th><th width="30%" colspan="5">FALTAS</th></tr></thead>
+            <tbody>${Array(12).fill('<tr><td style="height:18px;"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}</tbody>
+            <tr><td colspan="2">FALTAS DE EQUIPO</td><td colspan="5">1P [ ] 2P [ ] 3P [ ] 4P [ ]</td></tr>
+          </table>
+        </div>
+        <div class="score-column">
+          <div style="text-align:center; font-weight:bold; border:1px solid #000; border-bottom:none; background:#eee;">PUNTUACIÓN CORRIDA</div>
+          <table class="running-score">
+            <thead><tr><th>Pts</th><th>A</th><th>B</th><th>Pts</th><th>A</th><th>B</th></tr></thead>
+            <tbody>${runningScoreHTML}</tbody>
+          </table>
+        </div>
+      </div>
+      <table style="width:400px; margin-top:15px; float:left;">
+        <tr style="background:#eee;"><td>PERIODOS</td><td>1°</td><td>2°</td><td>3°</td><td>4°</td><td>EX</td><td>TOTAL</td></tr>
+        <tr><td>EQUIPO A</td><td style="height:20px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>EQUIPO B</td><td style="height:20px;"></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </table>
+      <table class="footer-table"><tr>
+        <td class="sign-box" width="25%">Capitán Equipo A</td>
+        <td class="sign-box" width="25%">Capitán Equipo B</td>
+        <td class="sign-box" width="25%">Anotador / Mesa</td>
+        <td class="sign-box" width="25%">Árbitro Principal</td>
+      </tr></table>
+    </body></html>`);
+  printWindow.document.close();
 }
+window.printScoresheet = printScoresheet;
 
 // ============================================
 // LÓGICA DE SEDES (EDITAR / ELIMINAR)
@@ -1303,7 +1274,6 @@ function handleEditVenueSubmit(e) {
   e.preventDefault();
   const venueId = document.getElementById('selectEditVenue').value;
   if (!venueId) return alert("Selecciona una sede.");
-
   update(ref(db, `tournaments/${currentTournamentId}/venues/${venueId}`), {
     name:    document.getElementById('editVenueName').value.trim(),
     address: document.getElementById('editVenueAddress').value.trim(),
@@ -1314,16 +1284,13 @@ function handleEditVenueSubmit(e) {
   });
 }
 
-// FIX #4: null check en hasMatches
 function handleDeleteVenueButton() {
   const venueId = document.getElementById('selectEditVenue').value;
   if (!venueId) return alert("Selecciona una sede para eliminar.");
-
   const hasMatches = Object.values(globalMatches).some(m => m && m.venueId === venueId);
   if (hasMatches) {
     return alert("❌ No puedes eliminar esta sede porque tiene partidos programados. Mueve o borra los partidos primero.");
   }
-
   if (confirm("⚠️ ¿Estás seguro de eliminar esta cancha? Esta acción no se puede deshacer.")) {
     remove(ref(db, `tournaments/${currentTournamentId}/venues/${venueId}`))
       .then(() => {
@@ -1332,3 +1299,43 @@ function handleDeleteVenueButton() {
       });
   }
 }
+
+// ============================================
+// PATROCINADORES: LISTA ADMIN + ELIMINAR
+// ============================================
+function renderAdminSponsorList(sponsorsData) {
+  const container = document.getElementById('admin-sponsor-list');
+  if (!container) return;
+
+  if (!sponsorsData || Object.keys(sponsorsData).length === 0) {
+    container.innerHTML = "<p style='color:gray; padding:10px;'>No hay patrocinadores registrados.</p>";
+    return;
+  }
+
+  let html = '<ul style="list-style:none; padding:0; margin-top:15px; border-top:1px solid #444;">';
+  Object.entries(sponsorsData).forEach(([id, s]) => {
+    html += `
+      <li style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #333;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <img src="${s.logo}" alt="${s.name}" style="height:30px; width:auto; border-radius:3px; background:#fff; object-fit:contain;">
+          <span>${s.name}</span>
+        </div>
+        <button onclick="deleteSponsor('${id}')" style="background:#ef4444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:0.7rem;">🗑️ Quitar</button>
+      </li>`;
+  });
+  html += '</ul>';
+  container.innerHTML = html;
+}
+
+function deleteSponsor(sponsorId) {
+  if (!currentTournamentId) return;
+  if (confirm("¿Estás seguro de quitar a este patrocinador del banner?")) {
+    remove(ref(db, `tournaments/${currentTournamentId}/sponsors/${sponsorId}`))
+      .then(() => alert("✅ Patrocinador eliminado."))
+      .catch(err => {
+        console.error("Error al borrar:", err);
+        alert("No se pudo eliminar el patrocinador.");
+      });
+  }
+}
+window.deleteSponsor = deleteSponsor;
