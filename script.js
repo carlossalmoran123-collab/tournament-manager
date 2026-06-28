@@ -379,58 +379,87 @@ function renderMatchesByVenue() {
   venuesArr.forEach(([venueId, venue]) => {
     const block = document.createElement('div');
     block.className = 'venue-role-block';
-    block.style.marginBottom = '30px';
+    block.style.marginBottom = '40px';
 
     const mapsLink = venue.mapsUrl
       ? `<a href="${venue.mapsUrl}" target="_blank" style="margin-left:15px; font-size:0.85rem; color:#ff6b00; text-decoration:underline;">📍 Ver Ubicación</a>`
       : '';
 
     block.innerHTML = `
-      <div style="display:flex; align-items:center; border-bottom:2px solid var(--accent-orange); margin-bottom:15px;">
-        <h3 style="margin:0; padding-bottom:5px;">🏢 Sede: ${venue.name}</h3>
+      <div style="display:flex; align-items:center; border-bottom:3px solid var(--accent-orange); margin-bottom:15px; background: rgba(255,107,0,0.05); padding: 10px; border-radius: 8px 8px 0 0;">
+        <h3 style="margin:0;">🏢 SEDE: ${venue.name}</h3>
         ${mapsLink}
       </div>`;
 
     const vMatches = matchesArr.filter(([_, m]) => m.venueId === venueId);
 
     if (vMatches.length === 0) {
-      block.innerHTML += `<p style="color:#888; font-style:italic; padding:10px;">No hay partidos programados.</p>`;
+      block.innerHTML += `<p style="color:#888; font-style:italic; padding:10px;">No hay partidos programados en esta sede.</p>`;
     } else {
-      vMatches.sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
+      const uniqueDates = [...new Set(vMatches.map(([_, m]) => m.date))].sort();
 
-      let matchesHtml = '';
-      vMatches.forEach(([mId, match]) => {
-        const scoreText = (match.localScore !== undefined)
-          ? `<strong>${match.localScore}-${match.visitorScore}</strong>`
-          : 'vs';
+      uniqueDates.forEach(dateString => {
+        // ✅ FIX: parsear la fecha sin conversión de zona horaria
+        if (!dateString) return;
+        const parts = dateString.split('-');
+        if (parts.length !== 3) return;
+        const year  = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day   = parseInt(parts[2], 10);
 
-        let adminButtons = '';
-        if (isAdmin) {
-          adminButtons = `
-            <div style="display:flex; gap:5px; margin-left:10px;">
-              <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
-              <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
-            </div>`;
-        }
+        // Usar UTC para evitar que el día se desplace por zona horaria
+        const fechaObj = new Date(Date.UTC(year, month, day));
+        const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' };
+        let fechaBonita = fechaObj.toLocaleDateString('es-MX', opciones);
+        fechaBonita = fechaBonita.charAt(0).toUpperCase() + fechaBonita.slice(1);
 
-        matchesHtml += `
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">
-            <span style="font-size:0.9rem; color:#ccc; min-width:55px;">⏰ ${match.startTime}</span>
-            <span style="flex:1; text-align:center;">
-              <strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong>
-            </span>
-            <span style="font-size:0.7rem; background:#334155; padding:2px 6px; border-radius:4px; margin-left:10px; color:#aaa;">
-              ${categoriesConfig[match.category]?.label || ''}
-            </span>
-            ${adminButtons}
+        let dateHtml = `
+          <div style="background: #1e2530; color: #ff6b00; padding: 8px 15px; font-weight: bold; font-size: 0.95rem; margin: 20px 0 10px 0; border-radius: 4px; display: flex; align-items: center; border-left: 5px solid #ff6b00;">
+            📅 ${fechaBonita}
           </div>`;
+
+        const gamesOfDay = vMatches
+          .filter(([_, m]) => m.date === dateString)
+          .sort((a, b) => (a[1].startTime || '').localeCompare(b[1].startTime || ''));
+
+        gamesOfDay.forEach(([mId, match]) => {
+          const scoreText = (match.localScore !== undefined)
+            ? `<strong style="color:#ff6b00; font-size: 1.1rem;">${match.localScore} - ${match.visitorScore}</strong>`
+            : '<span style="color:#888; font-weight: bold;">vs</span>';
+
+          let adminButtons = '';
+          if (isAdmin) {
+            adminButtons = `
+              <div style="display:flex; gap:5px; margin-left:10px;">
+                <button onclick="printScoresheet('${mId}')" title="Imprimir Cédula" style="background:#334155; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">📄</button>
+                <button onclick="deleteMatchEvent('${mId}')" title="Eliminar" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">🗑️</button>
+              </div>`;
+          }
+
+          dateHtml += `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:rgba(255,255,255,0.03); margin-bottom:6px; border-radius:8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <div style="min-width:70px;">
+                <span style="font-size:0.85rem; color:#ff6b00; display:block; font-weight:bold;">⏰ ${match.startTime}</span>
+              </div>
+              <div style="flex:1; text-align:center; padding: 0 10px;">
+                <span style="font-size:1rem;"><strong>${match.localName}</strong> ${scoreText} <strong>${match.visitorName}</strong></span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:0.65rem; background:#334155; padding:3px 8px; border-radius:4px; color:#aaa; text-transform: uppercase;">
+                  ${categoriesConfig[match.category]?.label || match.category}
+                </span>
+                ${adminButtons}
+              </div>
+            </div>`;
+        });
+
+        block.innerHTML += dateHtml;
       });
-      block.innerHTML += matchesHtml;
     }
     container.appendChild(block);
   });
 
-  renderPlayoffs(container);
+  if (typeof renderPlayoffs === 'function') renderPlayoffs(container);
 }
 
 // ============================================
