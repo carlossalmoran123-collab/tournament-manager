@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "dribla-pasa-encesta",
     "public": ".",
     "ignore": [
       "firebase.json",
