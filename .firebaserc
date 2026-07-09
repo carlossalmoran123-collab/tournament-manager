@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "torneos-basquetbol"
-  }
+  },
+  "targets": {
+    "torneos-basquetbol": {
+      "hosting": {
+        "driblasite": [
+          "dribla-pasa-encesta"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
