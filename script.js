@@ -338,6 +338,16 @@ window.applyRoleBasedNavVisibility = applyRoleBasedNavVisibility;
 
 function switchSection(sectionId, fromGlobalSelector = false) {
   if (fromGlobalSelector) {
+    // Admin entró directo al panel sin pasar por "Entrar a la Aplicación"
+    // → cargar la competencia que tenga seleccionada en el dropdown (o la primera disponible)
+    if (!currentTournamentId) {
+      const select = document.getElementById('globalCompetitionSelect');
+      const id = select?.value || Object.keys(globalTournaments)[0] || null;
+      if (id) {
+        currentTournamentId = id;
+        attachTournamentRealtimeListeners(id);
+      }
+    }
     document.getElementById('competition-selector-screen').style.display = 'none';
     document.getElementById('main-app-content').style.display = 'block';
     sectionId = 'admin';
