@@ -113,24 +113,11 @@ function initGlobalTournamentsObserver() {
   onValue(ref(db, 'tournaments'), (snapshot) => {
     globalTournaments = snapshot.val() || {};
     renderCompetitionsSelector();
-    renderAdminMasterPanel();   // actualiza el Panel Master si está visible
   });
 }
 
-// Guardamos los unsubscribers para limpiarlos al salir de un evento
-let _unsubTournament = null;
-let _unsubSponsors   = null;
-
-function detachTournamentListeners() {
-  if (_unsubTournament) { _unsubTournament(); _unsubTournament = null; }
-  if (_unsubSponsors)   { _unsubSponsors();   _unsubSponsors   = null; }
-}
-
 function attachTournamentRealtimeListeners(tournamentId) {
-  // Limpiar listeners anteriores para evitar duplicados
-  detachTournamentListeners();
-
-  _unsubTournament = onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
+  onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
@@ -140,10 +127,10 @@ function attachTournamentRealtimeListeners(tournamentId) {
     globalMatches = data.matches || {};
     globalFormats = data.formats || {};
 
-    const titleEl = document.getElementById('appTournamentTitle');
-    const venueEl = document.getElementById('appTournamentVenue');
-    if (titleEl) titleEl.innerText = (data.name || "Torneo Activo") + " | DRIBLA, PASA Y ENCESTA STATS";
-    if (venueEl) venueEl.innerText = data.location || "Sede General";
+    document.getElementById('appTournamentTitle').innerText =
+      (data.name || "Torneo Activo") + " | DRIBLA, PASA Y ENCESTA STATS";
+    document.getElementById('appTournamentVenue').innerText =
+      data.location || "Sede General";
 
     populateStaticAdminDropdowns();
     updateFilteredTeamsDropdowns();
@@ -158,7 +145,7 @@ function attachTournamentRealtimeListeners(tournamentId) {
     renderPlayerRegistry();
   });
 
-  _unsubSponsors = onValue(ref(db, `tournaments/${tournamentId}/sponsors`), (snap) => {
+  onValue(ref(db, `tournaments/${tournamentId}/sponsors`), (snap) => {
     const data = snap.val();
     startSponsorRotation(data);
     renderAdminSponsorList(data);
@@ -173,14 +160,17 @@ onAuthStateChanged(auth, async (user) => {
 
   if (user) {
     currentUserUid = user.uid;
+    console.log("✅ Usuario autenticado:", user.email, "| UID:", user.uid);
 
     // ✅ NUEVO: buscamos si este usuario tiene un rol restringido de "coach"
     let roleData = null;
     try {
       const roleSnap = await get(ref(db, `roles/${user.uid}`));
       roleData = roleSnap.val();
+      console.log("📋 Datos de rol obtenidos:", roleData);
     } catch (err) {
-      console.error("No se pudo leer el rol del usuario:", err);
+      // Si las reglas de DB bloquean la lectura, se asume admin (no coach)
+      console.warn("⚠️ No se pudo leer el rol — se asume 'admin':", err.code || err.message);
     }
 
     if (roleData && roleData.role === 'coach') {
@@ -209,15 +199,13 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('btnGoToStandaloneAthletes').innerText = `🪪 Registrar mis Jugadores (${currentUserName})`;
       }
     } else {
-      // Administrador: acceso total → ir directo al Panel Master
-      if (document.getElementById('btnGoToAdminPrep')) document.getElementById('btnGoToAdminPrep').style.display = 'none';
+      // Administrador: acceso total
+      if (document.getElementById('btnGoToAdminPrep')) document.getElementById('btnGoToAdminPrep').style.display = 'block';
       if (document.getElementById('admin-dashboard-panels')) document.getElementById('admin-dashboard-panels').style.display = 'grid';
       if (document.getElementById('btnGoToStandaloneAthletes')) {
         document.getElementById('btnGoToStandaloneAthletes').style.display = 'block';
         document.getElementById('btnGoToStandaloneAthletes').innerText = '🪪 Registro y Credenciales de Atletas';
       }
-      // Redirigir al Panel Master automáticamente
-      goToAdminMasterPanel();
     }
     applyRoleBasedNavVisibility();
   } else {
@@ -242,15 +230,28 @@ onAuthStateChanged(auth, async (user) => {
 
 async function handleLoginSubmit(e) {
   e.preventDefault();
+  const emailVal = document.getElementById('loginEmail').value.trim();
+  const passVal  = document.getElementById('loginPassword').value;
+
+  if (!emailVal || !passVal) {
+    alert("⚠️ Por favor ingresa email y contraseña.");
+    return;
+  }
+
   try {
-    await signInWithEmailAndPassword(
-      auth,
-      document.getElementById('loginEmail').value.trim(),
-      document.getElementById('loginPassword').value
-    );
-    alert("🔐 Autenticado.");
+    await signInWithEmailAndPassword(auth, emailVal, passVal);
+    // El onAuthStateChanged se encarga del resto
   } catch (error) {
-    alert("Acceso denegado");
+    console.error("Error de login:", error.code, error.message);
+    const msgs = {
+      'auth/user-not-found':    '❌ No existe una cuenta con ese correo.',
+      'auth/wrong-password':    '❌ Contraseña incorrecta. Verifica e inténtalo de nuevo.',
+      'auth/invalid-credential':'❌ Email o contraseña incorrectos.',
+      'auth/invalid-email':     '❌ El formato del correo no es válido.',
+      'auth/too-many-requests': '⏳ Demasiados intentos fallidos. Espera unos minutos antes de volver a intentar.',
+      'auth/network-request-failed': '🌐 Sin conexión a internet. Revisa tu red.'
+    };
+    alert(msgs[error.code] || `❌ Error al iniciar sesión: ${error.message}`);
   }
 }
 
@@ -258,11 +259,6 @@ async function handleLogout() {
   await signOut(auth);
   location.reload();
 }
-
-function signOutAdmin() {
-  signOut(auth).then(() => location.reload());
-}
-window.signOutAdmin = signOutAdmin;
 
 // ============================================
 // NAVEGACIÓN
@@ -345,128 +341,6 @@ function loadSelectedTournamentContext() {
   switchSection('dashboard');
 }
 
-// ── PANEL MASTER (admin) ──────────────────────────────────────────────────────
-function goToAdminMasterPanel() {
-  document.getElementById('competition-selector-screen').style.display = 'none';
-  document.getElementById('main-app-content').style.display         = 'none';
-  document.getElementById('admin-master-screen').style.display      = 'block';
-  renderAdminMasterPanel();
-}
-window.goToAdminMasterPanel = goToAdminMasterPanel;
-
-function backToMasterFromEvent() {
-  detachTournamentListeners();
-  currentTournamentId = null;
-  globalTeams   = {};
-  globalVenues  = {};
-  globalMatches = {};
-  document.getElementById('main-app-content').style.display    = 'none';
-  document.getElementById('admin-master-screen').style.display = 'block';
-  renderAdminMasterPanel();
-}
-window.backToMasterFromEvent = backToMasterFromEvent;
-
-function adminEnterEvent(id) {
-  if (!id || !globalTournaments[id]) return;
-  const t = globalTournaments[id];
-  // 1. Mostrar la app PRIMERO para que todos los elementos del DOM existan
-  document.getElementById('admin-master-screen').style.display = 'none';
-  document.getElementById('main-app-content').style.display    = 'block';
-  // 2. Actualizar título
-  const titleEl = document.getElementById('appTournamentTitle');
-  const venueEl = document.getElementById('appTournamentVenue');
-  if (titleEl) titleEl.innerText = (t.name || 'Competencia') + ' | DRIBLA, PASA Y ENCESTA STATS';
-  if (venueEl) venueEl.innerText = t.location || '--';
-  // 3. Conectar listeners (DOM ya visible, no hay riesgo de fallo silencioso)
-  currentTournamentId = id;
-  attachTournamentRealtimeListeners(id);
-  switchSection('admin');
-}
-window.adminEnterEvent = adminEnterEvent;
-
-function toggleCompetitionPublic(id, currentlyPublic) {
-  const accion = currentlyPublic ? 'bloquear' : 'publicar';
-  if (!confirm('¿Deseas ' + accion + ' esta competencia?')) return;
-  update(ref(db, 'tournaments/' + id), { isPublic: !currentlyPublic })
-    .catch(err => alert('Error: ' + err.message));
-}
-window.toggleCompetitionPublic = toggleCompetitionPublic;
-
-function renderAdminMasterPanel() {
-  const container = document.getElementById('master-competitions-list');
-  if (!container) return;
-  const keys = Object.keys(globalTournaments);
-  if (keys.length === 0) {
-    container.innerHTML = '<p style="color:#aaa; text-align:center; padding:30px; font-size:0.9rem;">Aún no tienes competencias. Crea una abajo.</p>';
-    return;
-  }
-
-  container.innerHTML = keys.map(key => {
-    const t = globalTournaments[key];
-    const pub = t.isPublic === true;
-    const teams    = Object.keys(t.teams    || {}).length;
-    const matches  = Object.keys(t.matches  || {}).length;
-    const venues   = Object.keys(t.venues   || {}).length;
-    // Contar atletas dentro de equipos
-    let athletes = 0;
-    Object.values(t.teams || {}).forEach(team => {
-      athletes += Object.keys(team.players || {}).length;
-    });
-
-    return `
-    <div style="background:#0f172a; border:1px solid ${pub ? '#10b981' : '#334155'};
-                border-radius:12px; padding:20px; margin-bottom:16px;">
-      <!-- Encabezado -->
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
-        <div>
-          <div style="font-size:1.1rem; font-weight:bold; color:#fff;">${t.name}</div>
-          <div style="font-size:0.8rem; color:#aaa; margin-top:3px;">📍 ${t.location || 'Sin sede definida'}</div>
-        </div>
-        <span style="font-size:0.75rem; font-weight:bold; padding:4px 12px; border-radius:20px; white-space:nowrap;
-          background:${pub ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.1)'};
-          color:${pub ? '#10b981' : '#ef4444'};">
-          ${pub ? '🟢 PÚBLICA' : '🔒 BLOQUEADA'}
-        </span>
-      </div>
-
-      <!-- Estadísticas rápidas -->
-      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0;">
-        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${teams}</div>
-          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Equipos</div>
-        </div>
-        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${athletes}</div>
-          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Atletas</div>
-        </div>
-        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${matches}</div>
-          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Partidos</div>
-        </div>
-        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
-          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${venues}</div>
-          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Sedes</div>
-        </div>
-      </div>
-
-      <!-- Acciones -->
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button onclick="adminEnterEvent('${key}')"
-          style="flex:1; min-width:140px; padding:10px; background:#ff6b00; color:#fff;
-                 border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:0.85rem;">
-          ⚙️ Administrar Evento
-        </button>
-        <button onclick="toggleCompetitionPublic('${key}', ${pub})"
-          style="flex:1; min-width:120px; padding:10px; border:none; border-radius:8px;
-                 font-weight:bold; cursor:pointer; font-size:0.85rem;
-                 background:${pub ? '#7f1d1d' : '#065f46'}; color:#fff;">
-          ${pub ? '🔒 Bloquear' : '🟢 Publicar'}
-        </button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
 // ✅ NUEVO: cierra el hueco donde un entrenador que entra a "ver" un torneo (modo espectador)
 // podía llegar a ver botones/pestañas exclusivos de administración solo por estar autenticado.
 // Estos elementos deben ocultarse SIEMPRE que el rol no sea 'admin', sin importar is-admin.
@@ -478,11 +352,26 @@ function applyRoleBasedNavVisibility() {
 }
 window.applyRoleBasedNavVisibility = applyRoleBasedNavVisibility;
 
-function switchSection(sectionId) {
+function switchSection(sectionId, fromGlobalSelector = false) {
+  if (fromGlobalSelector) {
+    // Admin entró directo al panel sin pasar por "Entrar a la Aplicación"
+    // → cargar la competencia que tenga seleccionada en el dropdown (o la primera disponible)
+    if (!currentTournamentId) {
+      const select = document.getElementById('globalCompetitionSelect');
+      const id = select?.value || Object.keys(globalTournaments)[0] || null;
+      if (id) {
+        currentTournamentId = id;
+        attachTournamentRealtimeListeners(id);
+      }
+    }
+    document.getElementById('competition-selector-screen').style.display = 'none';
+    document.getElementById('main-app-content').style.display = 'block';
+    sectionId = 'admin';
+  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(sectionId)?.classList.add('active');
-  document.querySelector('[data-section="' + sectionId + '"]')?.classList.add('active');
+  document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
 }
 window.switchSection = switchSection;
 
@@ -953,6 +842,149 @@ function ensureCredentialStylesInjected() {
   style.id = 'credential-card-css-global';
   style.innerHTML = CREDENTIAL_CARD_CSS;
   document.head.appendChild(style);
+}
+
+const CREDENTIAL_CARD_CSS = `
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+  .card { width: 340px; height: 214px; border: 2px solid #000; border-radius: 12px; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.2); background: #fff; box-sizing: border-box; font-family: 'Helvetica', Arial, sans-serif; }
+
+  .front { background: linear-gradient(135deg, #fff 65%, #ff6b00 100%); }
+  .header { background: #000; color: #fff; padding: 5px 8px; display: flex; align-items: center; gap: 8px; height: 22px; box-sizing: border-box; }
+  .header img { height: 18px; }
+  .header span { font-size: 8.5px; font-weight: bold; text-transform: uppercase; }
+
+  .photo-box { position: absolute; top: 28px; left: 10px; width: 78px; height: 112px; border: 1.5px solid #000; background: #eee; }
+  .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+
+  .main-data { position: absolute; top: 28px; left: 94px; right: 98px; }
+  .label { font-size: 7px; color: #666; text-transform: uppercase; margin: 0; }
+  .value { font-size: 9px; font-weight: bold; margin: 0 0 3px 0; text-transform: uppercase; line-height: 1.15; }
+
+  .front-logo-band { position: absolute; top: 26px; bottom: 22px; right: 6px; width: 86px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+  .front-logo-band img { height: 84px; width: auto; max-width: 86px; object-fit: contain; }
+  .front-logo-band .player-num { font-size: 24px; font-weight: 900; color: #000; line-height: 1; }
+
+  .id-footer { position: absolute; bottom: 0; width: 100%; background: #000; color: #fff; font-size: 8px; text-align: center; padding: 3px 0; box-sizing: border-box; }
+
+  .back { background: #f9f9f9; padding: 10px 14px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; }
+  .back-top { display: flex; justify-content: center; align-items: center; height: 74px; }
+  .back-top img { height: 66px; width: auto; max-width: 200px; object-fit: contain; }
+  .back-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .back-grid .label { font-size: 7px; }
+  .back-grid .value { font-size: 9px; }
+  .resp-box { border-top: 1px solid #ccc; padding-top: 5px; margin-top: 4px; }
+  .signature-area { margin-top: 4px; text-align: center; }
+  .signature-line { border-top: 1px solid #000; width: 120px; margin: 8px auto 0 auto; font-size: 8px; }
+
+  #credWrapper { display: flex; flex-direction: column; gap: 20px; align-items: center; }
+  @media print { .no-print { display: none; } body { padding: 0; } .card { box-shadow: none; page-break-inside: avoid; } }
+`;
+
+// ✅ REFACTOR: markup de las 2 tarjetas (frente/reverso), reutilizable en
+// impresión individual y en la exportación masiva en ZIP.
+function buildCredentialCardMarkup(data) {
+  const { name, club, categoryLabel, photo, playerID, vigenciaTexto, curp, birth, bloodType, responsibleName, responsiblePhone, number } = data;
+  return `
+      <div class="card front">
+        <div class="header">
+          <img src="${APP_LOGO_URL}">
+          <span>Atleta Oficial - Dribla, Pasa y Encesta</span>
+        </div>
+        <div class="photo-box">
+          <img src="${photo}" crossorigin="anonymous">
+        </div>
+        <div class="main-data">
+          <p class="label">Nombre del Jugador</p>
+          <p class="value">${name}</p>
+          <p class="label">Club / Equipo</p>
+          <p class="value">${club}</p>
+          <p class="label">Categoria</p>
+          <p class="value">${categoryLabel}</p>
+          <p class="label">Vigencia</p>
+          <p class="value" style="color:#ff6b00;">${vigenciaTexto}</p>
+        </div>
+        <div class="front-logo-band">
+          <img src="${LOGO_FRENTE_URL}" crossorigin="anonymous">
+          <div class="player-num">${number || ''}</div>
+        </div>
+        <div class="id-footer">ID AFILIACION: ${playerID}</div>
+      </div>
+
+      <div class="card back">
+        <div class="back-top">
+          <img src="${LOGO_REVERSO_URL}" crossorigin="anonymous">
+        </div>
+        <div class="back-grid">
+          <div>
+            <p class="label">CURP</p>
+            <p class="value">${curp}</p>
+          </div>
+          <div>
+            <p class="label">Fecha Nacimiento</p>
+            <p class="value">${birth}</p>
+          </div>
+          <div>
+            <p class="label">Tipo de Sangre</p>
+            <p class="value" style="color:#c0392b;">${bloodType}</p>
+          </div>
+          <div>
+            <p class="label">ID Afiliacion</p>
+            <p class="value">${playerID}</p>
+          </div>
+        </div>
+
+        <div class="resp-box">
+          <p class="label">Contacto de Emergencia (Responsable)</p>
+          <p class="value" style="font-size:9px;">${responsibleName}</p>
+          <p class="value" style="font-size:9px;">Tel: ${responsiblePhone}</p>
+        </div>
+
+        <div class="signature-area">
+          <div class="signature-line">Firma del Delegado / Coach</div>
+        </div>
+      </div>`;
+}
+
+function openCredentialWindow(data) {
+  const { name, playerID } = data;
+  const cardMarkup = buildCredentialCardMarkup(data);
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+    <head>
+      <title>Credencial - ${name}</title>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
+      <style>
+        body { font-family: 'Helvetica', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
+        ${CREDENTIAL_CARD_CSS}
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="margin-bottom: 20px; text-align:center;">
+        <button onclick="window.print()" style="padding: 10px 20px; cursor:pointer; font-weight:bold; margin-right:10px;">IMPRIMIR CREDENCIAL</button>
+        <button id="btnDownloadImg" style="padding: 10px 20px; cursor:pointer; font-weight:bold; background:#10b981; color:#fff; border:none; border-radius:6px;">DESCARGAR COMO IMAGEN (PNG)</button>
+        <p><small>Impresión: activa "Gráficos de fondo" en el diálogo de impresión para conservar los colores. Imagen: lista para imprimir en tienda de fotocopiado.</small></p>
+      </div>
+      <div id="credWrapper">
+      ${cardMarkup}
+      </div>
+      <script>
+        document.getElementById('btnDownloadImg').addEventListener('click', function() {
+          html2canvas(document.getElementById('credWrapper'), { scale: 3, backgroundColor: '#f4f4f4' }).then(function(canvas) {
+            const link = document.createElement('a');
+            link.download = 'Credencial_${playerID}_${(name || '').replace(/\s+/g, '_')}.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+          }).catch(function(err) {
+            alert('No se pudo generar la imagen: ' + err);
+          });
+        });
+      <\/script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
 
 async function exportAllCredentialsPDF() {
@@ -2536,148 +2568,7 @@ function calcularVigencia(timestampISO) {
 // ✅ REFACTOR: CSS de la credencial extraído a una constante compartida,
 // así se puede inyectar tanto en la ventana de impresión individual como
 // en el área oculta usada para la exportación masiva en ZIP.
-const CREDENTIAL_CARD_CSS = `
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
-  .card { width: 340px; height: 214px; border: 2px solid #000; border-radius: 12px; position: relative; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.2); background: #fff; box-sizing: border-box; font-family: 'Helvetica', Arial, sans-serif; }
 
-  .front { background: linear-gradient(135deg, #fff 65%, #ff6b00 100%); }
-  .header { background: #000; color: #fff; padding: 5px 8px; display: flex; align-items: center; gap: 8px; height: 22px; box-sizing: border-box; }
-  .header img { height: 18px; }
-  .header span { font-size: 8.5px; font-weight: bold; text-transform: uppercase; }
-
-  .photo-box { position: absolute; top: 28px; left: 10px; width: 78px; height: 112px; border: 1.5px solid #000; background: #eee; }
-  .photo-box img { width: 100%; height: 100%; object-fit: cover; }
-
-  .main-data { position: absolute; top: 28px; left: 94px; right: 98px; }
-  .label { font-size: 7px; color: #666; text-transform: uppercase; margin: 0; }
-  .value { font-size: 9px; font-weight: bold; margin: 0 0 3px 0; text-transform: uppercase; line-height: 1.15; }
-
-  .front-logo-band { position: absolute; top: 26px; bottom: 22px; right: 6px; width: 86px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-  .front-logo-band img { height: 84px; width: auto; max-width: 86px; object-fit: contain; }
-  .front-logo-band .player-num { font-size: 24px; font-weight: 900; color: #000; line-height: 1; }
-
-  .id-footer { position: absolute; bottom: 0; width: 100%; background: #000; color: #fff; font-size: 8px; text-align: center; padding: 3px 0; box-sizing: border-box; }
-
-  .back { background: #f9f9f9; padding: 10px 14px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; }
-  .back-top { display: flex; justify-content: center; align-items: center; height: 74px; }
-  .back-top img { height: 66px; width: auto; max-width: 200px; object-fit: contain; }
-  .back-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .back-grid .label { font-size: 7px; }
-  .back-grid .value { font-size: 9px; }
-  .resp-box { border-top: 1px solid #ccc; padding-top: 5px; margin-top: 4px; }
-  .signature-area { margin-top: 4px; text-align: center; }
-  .signature-line { border-top: 1px solid #000; width: 120px; margin: 8px auto 0 auto; font-size: 8px; }
-
-  #credWrapper { display: flex; flex-direction: column; gap: 20px; align-items: center; }
-  @media print { .no-print { display: none; } body { padding: 0; } .card { box-shadow: none; page-break-inside: avoid; } }
-`;
-
-// ✅ REFACTOR: markup de las 2 tarjetas (frente/reverso), reutilizable en
-// impresión individual y en la exportación masiva en ZIP.
-function buildCredentialCardMarkup(data) {
-  const { name, club, categoryLabel, photo, playerID, vigenciaTexto, curp, birth, bloodType, responsibleName, responsiblePhone, number } = data;
-  return `
-      <div class="card front">
-        <div class="header">
-          <img src="${APP_LOGO_URL}">
-          <span>Atleta Oficial - Dribla, Pasa y Encesta</span>
-        </div>
-        <div class="photo-box">
-          <img src="${photo}" crossorigin="anonymous">
-        </div>
-        <div class="main-data">
-          <p class="label">Nombre del Jugador</p>
-          <p class="value">${name}</p>
-          <p class="label">Club / Equipo</p>
-          <p class="value">${club}</p>
-          <p class="label">Categoria</p>
-          <p class="value">${categoryLabel}</p>
-          <p class="label">Vigencia</p>
-          <p class="value" style="color:#ff6b00;">${vigenciaTexto}</p>
-        </div>
-        <div class="front-logo-band">
-          <img src="${LOGO_FRENTE_URL}" crossorigin="anonymous">
-          <div class="player-num">${number || ''}</div>
-        </div>
-        <div class="id-footer">ID AFILIACION: ${playerID}</div>
-      </div>
-
-      <div class="card back">
-        <div class="back-top">
-          <img src="${LOGO_REVERSO_URL}" crossorigin="anonymous">
-        </div>
-        <div class="back-grid">
-          <div>
-            <p class="label">CURP</p>
-            <p class="value">${curp}</p>
-          </div>
-          <div>
-            <p class="label">Fecha Nacimiento</p>
-            <p class="value">${birth}</p>
-          </div>
-          <div>
-            <p class="label">Tipo de Sangre</p>
-            <p class="value" style="color:#c0392b;">${bloodType}</p>
-          </div>
-          <div>
-            <p class="label">ID Afiliacion</p>
-            <p class="value">${playerID}</p>
-          </div>
-        </div>
-
-        <div class="resp-box">
-          <p class="label">Contacto de Emergencia (Responsable)</p>
-          <p class="value" style="font-size:9px;">${responsibleName}</p>
-          <p class="value" style="font-size:9px;">Tel: ${responsiblePhone}</p>
-        </div>
-
-        <div class="signature-area">
-          <div class="signature-line">Firma del Delegado / Coach</div>
-        </div>
-      </div>`;
-}
-
-function openCredentialWindow(data) {
-  const { name, playerID } = data;
-  const cardMarkup = buildCredentialCardMarkup(data);
-
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <html>
-    <head>
-      <title>Credencial - ${name}</title>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
-      <style>
-        body { font-family: 'Helvetica', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
-        ${CREDENTIAL_CARD_CSS}
-      </style>
-    </head>
-    <body>
-      <div class="no-print" style="margin-bottom: 20px; text-align:center;">
-        <button onclick="window.print()" style="padding: 10px 20px; cursor:pointer; font-weight:bold; margin-right:10px;">IMPRIMIR CREDENCIAL</button>
-        <button id="btnDownloadImg" style="padding: 10px 20px; cursor:pointer; font-weight:bold; background:#10b981; color:#fff; border:none; border-radius:6px;">DESCARGAR COMO IMAGEN (PNG)</button>
-        <p><small>Impresión: activa "Gráficos de fondo" en el diálogo de impresión para conservar los colores. Imagen: lista para imprimir en tienda de fotocopiado.</small></p>
-      </div>
-      <div id="credWrapper">
-      ${cardMarkup}
-      </div>
-      <script>
-        document.getElementById('btnDownloadImg').addEventListener('click', function() {
-          html2canvas(document.getElementById('credWrapper'), { scale: 3, backgroundColor: '#f4f4f4' }).then(function(canvas) {
-            const link = document.createElement('a');
-            link.download = 'Credencial_${playerID}_${(name || '').replace(/\s+/g, '_')}.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-          }).catch(function(err) {
-            alert('No se pudo generar la imagen: ' + err);
-          });
-        });
-      <\/script>
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-}
 
 // Credencial para jugadores ligados a un equipo dentro de un torneo (flujo original)
 function printPlayerID(teamId, playerId) {
