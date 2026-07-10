@@ -117,8 +117,20 @@ function initGlobalTournamentsObserver() {
   });
 }
 
+// Guardamos los unsubscribers para limpiarlos al salir de un evento
+let _unsubTournament = null;
+let _unsubSponsors   = null;
+
+function detachTournamentListeners() {
+  if (_unsubTournament) { _unsubTournament(); _unsubTournament = null; }
+  if (_unsubSponsors)   { _unsubSponsors();   _unsubSponsors   = null; }
+}
+
 function attachTournamentRealtimeListeners(tournamentId) {
-  onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
+  // Limpiar listeners anteriores para evitar duplicados
+  detachTournamentListeners();
+
+  _unsubTournament = onValue(ref(db, `tournaments/${tournamentId}`), (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
@@ -128,10 +140,10 @@ function attachTournamentRealtimeListeners(tournamentId) {
     globalMatches = data.matches || {};
     globalFormats = data.formats || {};
 
-    document.getElementById('appTournamentTitle').innerText =
-      (data.name || "Torneo Activo") + " | DRIBLA, PASA Y ENCESTA STATS";
-    document.getElementById('appTournamentVenue').innerText =
-      data.location || "Sede General";
+    const titleEl = document.getElementById('appTournamentTitle');
+    const venueEl = document.getElementById('appTournamentVenue');
+    if (titleEl) titleEl.innerText = (data.name || "Torneo Activo") + " | DRIBLA, PASA Y ENCESTA STATS";
+    if (venueEl) venueEl.innerText = data.location || "Sede General";
 
     populateStaticAdminDropdowns();
     updateFilteredTeamsDropdowns();
@@ -146,7 +158,7 @@ function attachTournamentRealtimeListeners(tournamentId) {
     renderPlayerRegistry();
   });
 
-  onValue(ref(db, `tournaments/${tournamentId}/sponsors`), (snap) => {
+  _unsubSponsors = onValue(ref(db, `tournaments/${tournamentId}/sponsors`), (snap) => {
     const data = snap.val();
     startSponsorRotation(data);
     renderAdminSponsorList(data);
@@ -343,25 +355,31 @@ function goToAdminMasterPanel() {
 window.goToAdminMasterPanel = goToAdminMasterPanel;
 
 function backToMasterFromEvent() {
+  detachTournamentListeners();
+  currentTournamentId = null;
+  globalTeams   = {};
+  globalVenues  = {};
+  globalMatches = {};
   document.getElementById('main-app-content').style.display    = 'none';
   document.getElementById('admin-master-screen').style.display = 'block';
-  currentTournamentId = null;
   renderAdminMasterPanel();
 }
 window.backToMasterFromEvent = backToMasterFromEvent;
 
 function adminEnterEvent(id) {
   if (!id || !globalTournaments[id]) return;
-  currentTournamentId = id;
-  attachTournamentRealtimeListeners(id);
+  const t = globalTournaments[id];
+  // 1. Mostrar la app PRIMERO para que todos los elementos del DOM existan
   document.getElementById('admin-master-screen').style.display = 'none';
   document.getElementById('main-app-content').style.display    = 'block';
-  // Actualizar título del header con la competencia elegida
-  const t = globalTournaments[id];
+  // 2. Actualizar título
   const titleEl = document.getElementById('appTournamentTitle');
   const venueEl = document.getElementById('appTournamentVenue');
-  if (titleEl) titleEl.innerText = t.name || 'Competencia';
+  if (titleEl) titleEl.innerText = (t.name || 'Competencia') + ' | DRIBLA, PASA Y ENCESTA STATS';
   if (venueEl) venueEl.innerText = t.location || '--';
+  // 3. Conectar listeners (DOM ya visible, no hay riesgo de fallo silencioso)
+  currentTournamentId = id;
+  attachTournamentRealtimeListeners(id);
   switchSection('admin');
 }
 window.adminEnterEvent = adminEnterEvent;
