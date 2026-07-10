@@ -252,15 +252,68 @@ function renderCompetitionsSelector() {
   if (!select) return;
   select.innerHTML = '';
   const keys = Object.keys(globalTournaments);
+  const isAdmin = document.body.classList.contains('is-admin');
+  // Público solo ve competencias marcadas isPublic; admin las ve todas
+  const visible = keys.filter(k => isAdmin || globalTournaments[k].isPublic === true);
+  if (visible.length === 0) {
+    select.innerHTML = isAdmin
+      ? '<option value="">Sin competencias — crea una abajo</option>'
+      : '<option value="">No hay competencias públicas disponibles</option>';
+  } else {
+    visible.forEach(key => {
+      const t = globalTournaments[key];
+      const badge = t.isPublic ? '' : ' [BLOQUEADA]';
+      select.innerHTML += `<option value="${key}">🏆 ${t.name}${badge} — 📍 ${t.location || 'Sin sede'}</option>`;
+    });
+  }
+  // Actualizar panel de gestión si está visible
+  renderCompetitionsManagerPanel();
+}
+
+// ── Panel de gestión de competencias (solo admin) ─────────────────────────────
+function renderCompetitionsManagerPanel() {
+  const container = document.getElementById('competitions-manager-list');
+  if (!container) return;
+  const keys = Object.keys(globalTournaments);
   if (keys.length === 0) {
-    select.innerHTML = '<option value="">No hay eventos maestros activos...</option>';
+    container.innerHTML = '<p style="color:#aaa;font-size:0.85rem;font-style:italic;">Aún no hay competencias creadas.</p>';
     return;
   }
-  keys.forEach(key => {
+  container.innerHTML = keys.map(key => {
     const t = globalTournaments[key];
-    select.innerHTML += `<option value="${key}">🏆 ${t.name} — 📍 Sede: ${t.location}</option>`;
-  });
+    const pub = t.isPublic === true;
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;
+                  background:#0f172a;border:1px solid ${pub ? '#10b981' : '#475569'};
+                  border-radius:8px;padding:12px 16px;margin-bottom:10px;">
+        <div>
+          <div style="font-weight:bold;color:#fff;font-size:0.95rem;">${t.name}</div>
+          <div style="font-size:0.78rem;color:#aaa;margin-top:2px;">📍 ${t.location || 'Sin sede'}</div>
+          <div style="margin-top:6px;">
+            <span style="font-size:0.75rem;font-weight:bold;padding:3px 10px;border-radius:10px;
+              background:${pub ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)'};
+              color:${pub ? '#10b981' : '#ef4444'};">
+              ${pub ? '🟢 PÚBLICA — visible al público' : '🔒 BLOQUEADA — solo visible para ti'}
+            </span>
+          </div>
+        </div>
+        <button onclick="toggleCompetitionPublic('${key}', ${pub})"
+          style="min-width:130px;padding:10px 14px;border:none;border-radius:6px;
+                 font-weight:bold;cursor:pointer;font-size:0.83rem;white-space:nowrap;
+                 background:${pub ? '#7f1d1d' : '#065f46'};color:#fff;">
+          ${pub ? '🔒 Bloquear' : '🟢 Publicar'}
+        </button>
+      </div>`;
+  }).join('');
 }
+
+function toggleCompetitionPublic(id, currentlyPublic) {
+  const accion = currentlyPublic ? 'bloquear' : 'publicar';
+  if (!confirm(`¿Deseas ${accion} esta competencia?`)) return;
+  update(ref(db, `tournaments/${id}`), { isPublic: !currentlyPublic })
+    .catch(err => alert('Error al actualizar: ' + err.message));
+}
+window.toggleCompetitionPublic = toggleCompetitionPublic;
 
 function loadSelectedTournamentContext() {
   const id = document.getElementById('globalCompetitionSelect')?.value;
@@ -1543,9 +1596,10 @@ function handleEventSubmit(e) {
   push(ref(db, 'tournaments'), {
     name:     document.getElementById('eventName').value.trim(),
     location: document.getElementById('eventLocation').value.trim() || "Por definir",
-    status:   "active"
+    status:   "active",
+    isPublic: false   // nace bloqueada; el admin la publica cuando esté lista
   }).then(() => {
-    alert("¡Torneo maestro creado!");
+    alert("¡Competencia creada! Está BLOQUEADA por defecto.\nPublícala desde 'Mis Competencias' cuando esté lista.");
     document.getElementById('eventForm').reset();
   });
 }

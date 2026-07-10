@@ -316,8 +316,18 @@
       <section id="admin" class="section">
         <h2 class="section-title">🛠️ Panel de Control Técnico</h2>
 
-        <!-- ✅ FIX: un solo div con display:none por defecto, el JS lo muestra al autenticar -->
         <div id="admin-dashboard-panels" class="admin-panels-grid" style="display:none;">
+
+          <!-- ✅ NUEVO: MIS COMPETENCIAS (control de visibilidad) -->
+          <div class="admin-form-card" style="grid-column: 1 / -1; border: 2px solid #ff6b00;">
+            <h3>📋 Mis Competencias</h3>
+            <p style="font-size:0.8rem; color:#aaa; margin-top:-8px; margin-bottom:16px;">
+              Decide qué competencias son visibles al público. Las bloqueadas solo las ves tú como administrador.
+            </p>
+            <div id="competitions-manager-list">
+              <p style="color:#aaa; font-size:0.85rem; font-style:italic;">Cargando competencias...</p>
+            </div>
+          </div>
 
           <!-- PATROCINADORES -->
           <div class="admin-form-card">
@@ -328,7 +338,6 @@
                 <input type="text" id="sponsorName" required>
               </div>
 
-              <!-- ✅ Logo del patrocinador: ahora es botón de subida (JPG/PNG) -->
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🏷️ Logo del Patrocinador (JPG o PNG)</label>
                 <label for="sponsorLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -350,24 +359,21 @@
             <div id="admin-sponsor-list" style="margin-top:10px; font-size:0.8rem;"></div>
           </div>
 
-          <!-- REGISTRO DE ATLETAS (separado de Patrocinadores, ya no anidado) -->
+          <!-- REGISTRO DE ATLETAS -->
           <div class="admin-form-card">
             <h3>🏃 Registro Oficial de Atletas</h3>
             <form id="playerForm">
-              <!-- 1. Selección de Club -->
               <div class="form-group">
                 <label>Club / Equipo:</label>
                 <select id="selectTeamForPlayer" required></select>
               </div>
 
-              <!-- 2. Datos del Atleta -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
                   <label>Nombre Completo:</label>
                   <input type="text" id="playerName" placeholder="Nombre del niño/joven" required>
                 </div>
 
-                <!-- ✅ Foto del jugador: botón de subida (JPG/PNG) -->
                 <div class="form-group" style="margin-bottom:12px;">
                   <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Foto del Jugador (JPG o PNG)</label>
                   <label for="playerPhoto" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -396,7 +402,6 @@
                 </div>
               </div>
 
-              <!-- 3. Datos Médicos y Responsable -->
               <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
                 <div class="form-group">
                   <label>Tipo de Sangre:</label>
@@ -425,7 +430,6 @@
               <button type="submit" class="btn-primary">💾 Registrar Atleta y Generar ID</button>
             </form>
 
-            <!-- ✅ FIX: un solo contenedor de roster (antes estaba duplicado con el mismo id) -->
             <div id="admin-player-list" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
               <p style="color: #888; font-style: italic;">Selecciona un equipo para ver su roster.</p>
             </div>
@@ -440,7 +444,6 @@
                 <input type="text" id="regTeamName" required>
               </div>
 
-              <!-- ✅ Logo del equipo: botón de subida (JPG/PNG), opcional -->
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🛡️ Logo del Equipo (JPG o PNG, opcional)</label>
                 <label for="regTeamLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -480,7 +483,7 @@
   </form>
 </div>
 
-          <!-- Nueva Tarjeta: EDITAR / ELIMINAR SEDE -->
+          <!-- Editar / Eliminar Sede -->
 <div class="admin-form-card">
   <h3>✏️ / 🗑️ Editar o Eliminar Sede (Cancha)</h3>
   <form id="editVenueForm">
@@ -522,7 +525,6 @@
                 <input type="text" id="editTeamName" required>
               </div>
 
-              <!-- ✅ Logo del equipo: botón de subida, deja vacío para mantener el actual -->
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🛡️ Logo del Equipo (deja vacío para mantener el actual)</label>
                 <label for="editTeamLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -655,7 +657,7 @@
             </form>
           </div>
 
-          <!-- ✅ NUEVO: GESTIÓN DE ENTRENADORES -->
+          <!-- GESTIÓN DE ENTRENADORES -->
           <div class="admin-form-card" style="grid-column: 1 / -1; border: 2px solid #10b981;">
             <h3>👨‍🏫 Gestión de Entrenadores</h3>
             <p style="font-size:0.8rem; color:#aaa; margin-top:-5px;">
@@ -685,7 +687,7 @@
         </div><!-- fin admin-dashboard-panels -->
       </section>
 
-      <!-- ✅ NUEVO: Editor unificado — admin puede editar CUALQUIER jugador (equipo o independiente) -->
+      <!-- Editor unificado de jugadores -->
       <div id="editUnifiedPlayerCard" class="admin-form-card" style="display:none; border: 2px solid #ff6b00; margin-top:20px;">
         <h3>✏️ Editar Jugador</h3>
 
@@ -771,7 +773,6 @@
   <div id="sponsor-banner" class="sponsor-footer">
   <small>Nuestros Patrocinadores:</small>
   <div id="sponsor-display">
-    <!-- Aquí aparecerán los logos rotando -->
     <p>Cargando patrocinadores...</p>
   </div>
 </div>
