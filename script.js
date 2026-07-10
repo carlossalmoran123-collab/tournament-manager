@@ -113,6 +113,7 @@ function initGlobalTournamentsObserver() {
   onValue(ref(db, 'tournaments'), (snapshot) => {
     globalTournaments = snapshot.val() || {};
     renderCompetitionsSelector();
+    renderAdminMasterPanel();   // actualiza el Panel Master si está visible
   });
 }
 
@@ -196,13 +197,15 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('btnGoToStandaloneAthletes').innerText = `🪪 Registrar mis Jugadores (${currentUserName})`;
       }
     } else {
-      // Administrador: acceso total
-      if (document.getElementById('btnGoToAdminPrep')) document.getElementById('btnGoToAdminPrep').style.display = 'block';
+      // Administrador: acceso total → ir directo al Panel Master
+      if (document.getElementById('btnGoToAdminPrep')) document.getElementById('btnGoToAdminPrep').style.display = 'none';
       if (document.getElementById('admin-dashboard-panels')) document.getElementById('admin-dashboard-panels').style.display = 'grid';
       if (document.getElementById('btnGoToStandaloneAthletes')) {
         document.getElementById('btnGoToStandaloneAthletes').style.display = 'block';
         document.getElementById('btnGoToStandaloneAthletes').innerText = '🪪 Registro y Credenciales de Atletas';
       }
+      // Redirigir al Panel Master automáticamente
+      goToAdminMasterPanel();
     }
     applyRoleBasedNavVisibility();
   } else {
@@ -243,6 +246,11 @@ async function handleLogout() {
   await signOut(auth);
   location.reload();
 }
+
+function signOutAdmin() {
+  signOut(auth).then(() => location.reload());
+}
+window.signOutAdmin = signOutAdmin;
 
 // ============================================
 // NAVEGACIÓN
@@ -325,6 +333,122 @@ function loadSelectedTournamentContext() {
   switchSection('dashboard');
 }
 
+// ── PANEL MASTER (admin) ──────────────────────────────────────────────────────
+function goToAdminMasterPanel() {
+  document.getElementById('competition-selector-screen').style.display = 'none';
+  document.getElementById('main-app-content').style.display         = 'none';
+  document.getElementById('admin-master-screen').style.display      = 'block';
+  renderAdminMasterPanel();
+}
+window.goToAdminMasterPanel = goToAdminMasterPanel;
+
+function backToMasterFromEvent() {
+  document.getElementById('main-app-content').style.display    = 'none';
+  document.getElementById('admin-master-screen').style.display = 'block';
+  currentTournamentId = null;
+  renderAdminMasterPanel();
+}
+window.backToMasterFromEvent = backToMasterFromEvent;
+
+function adminEnterEvent(id) {
+  if (!id || !globalTournaments[id]) return;
+  currentTournamentId = id;
+  attachTournamentRealtimeListeners(id);
+  document.getElementById('admin-master-screen').style.display = 'none';
+  document.getElementById('main-app-content').style.display    = 'block';
+  // Actualizar título del header con la competencia elegida
+  const t = globalTournaments[id];
+  const titleEl = document.getElementById('appTournamentTitle');
+  const venueEl = document.getElementById('appTournamentVenue');
+  if (titleEl) titleEl.innerText = t.name || 'Competencia';
+  if (venueEl) venueEl.innerText = t.location || '--';
+  switchSection('admin');
+}
+window.adminEnterEvent = adminEnterEvent;
+
+function toggleCompetitionPublic(id, currentlyPublic) {
+  const accion = currentlyPublic ? 'bloquear' : 'publicar';
+  if (!confirm('¿Deseas ' + accion + ' esta competencia?')) return;
+  update(ref(db, 'tournaments/' + id), { isPublic: !currentlyPublic })
+    .catch(err => alert('Error: ' + err.message));
+}
+window.toggleCompetitionPublic = toggleCompetitionPublic;
+
+function renderAdminMasterPanel() {
+  const container = document.getElementById('master-competitions-list');
+  if (!container) return;
+  const keys = Object.keys(globalTournaments);
+  if (keys.length === 0) {
+    container.innerHTML = '<p style="color:#aaa; text-align:center; padding:30px; font-size:0.9rem;">Aún no tienes competencias. Crea una abajo.</p>';
+    return;
+  }
+
+  container.innerHTML = keys.map(key => {
+    const t = globalTournaments[key];
+    const pub = t.isPublic === true;
+    const teams    = Object.keys(t.teams    || {}).length;
+    const matches  = Object.keys(t.matches  || {}).length;
+    const venues   = Object.keys(t.venues   || {}).length;
+    // Contar atletas dentro de equipos
+    let athletes = 0;
+    Object.values(t.teams || {}).forEach(team => {
+      athletes += Object.keys(team.players || {}).length;
+    });
+
+    return `
+    <div style="background:#0f172a; border:1px solid ${pub ? '#10b981' : '#334155'};
+                border-radius:12px; padding:20px; margin-bottom:16px;">
+      <!-- Encabezado -->
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+        <div>
+          <div style="font-size:1.1rem; font-weight:bold; color:#fff;">${t.name}</div>
+          <div style="font-size:0.8rem; color:#aaa; margin-top:3px;">📍 ${t.location || 'Sin sede definida'}</div>
+        </div>
+        <span style="font-size:0.75rem; font-weight:bold; padding:4px 12px; border-radius:20px; white-space:nowrap;
+          background:${pub ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.1)'};
+          color:${pub ? '#10b981' : '#ef4444'};">
+          ${pub ? '🟢 PÚBLICA' : '🔒 BLOQUEADA'}
+        </span>
+      </div>
+
+      <!-- Estadísticas rápidas -->
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:16px 0;">
+        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${teams}</div>
+          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Equipos</div>
+        </div>
+        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${athletes}</div>
+          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Atletas</div>
+        </div>
+        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${matches}</div>
+          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Partidos</div>
+        </div>
+        <div style="background:#1e2530; border-radius:8px; padding:12px; text-align:center;">
+          <div style="font-size:1.4rem; font-weight:bold; color:#ff6b00;">${venues}</div>
+          <div style="font-size:0.72rem; color:#aaa; margin-top:2px;">Sedes</div>
+        </div>
+      </div>
+
+      <!-- Acciones -->
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button onclick="adminEnterEvent('${key}')"
+          style="flex:1; min-width:140px; padding:10px; background:#ff6b00; color:#fff;
+                 border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:0.85rem;">
+          ⚙️ Administrar Evento
+        </button>
+        <button onclick="toggleCompetitionPublic('${key}', ${pub})"
+          style="flex:1; min-width:120px; padding:10px; border:none; border-radius:8px;
+                 font-weight:bold; cursor:pointer; font-size:0.85rem;
+                 background:${pub ? '#7f1d1d' : '#065f46'}; color:#fff;">
+          ${pub ? '🔒 Bloquear' : '🟢 Publicar'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // ✅ NUEVO: cierra el hueco donde un entrenador que entra a "ver" un torneo (modo espectador)
 // podía llegar a ver botones/pestañas exclusivos de administración solo por estar autenticado.
 // Estos elementos deben ocultarse SIEMPRE que el rol no sea 'admin', sin importar is-admin.
@@ -336,26 +460,11 @@ function applyRoleBasedNavVisibility() {
 }
 window.applyRoleBasedNavVisibility = applyRoleBasedNavVisibility;
 
-function switchSection(sectionId, fromGlobalSelector = false) {
-  if (fromGlobalSelector) {
-    // Admin entró directo al panel sin pasar por "Entrar a la Aplicación"
-    // → cargar la competencia que tenga seleccionada en el dropdown (o la primera disponible)
-    if (!currentTournamentId) {
-      const select = document.getElementById('globalCompetitionSelect');
-      const id = select?.value || Object.keys(globalTournaments)[0] || null;
-      if (id) {
-        currentTournamentId = id;
-        attachTournamentRealtimeListeners(id);
-      }
-    }
-    document.getElementById('competition-selector-screen').style.display = 'none';
-    document.getElementById('main-app-content').style.display = 'block';
-    sectionId = 'admin';
-  }
+function switchSection(sectionId) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(sectionId)?.classList.add('active');
-  document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
+  document.querySelector('[data-section="' + sectionId + '"]')?.classList.add('active');
 }
 window.switchSection = switchSection;
 
