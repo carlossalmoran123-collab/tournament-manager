@@ -22,7 +22,7 @@ let currentTournamentId = null;
 let currentTournamentData = null;
 let isAdmin = false;
 // ✅ NUEVO: sistema de roles — 'admin' (acceso total) vs 'coach' (solo su propio registro de atletas)
-let currentUserRole = 'admin';
+let currentUserRole = 'public'; // arranca sin rol hasta que Firebase confirme
 let currentUserUid   = null;
 let currentUserName  = '';
 let globalRoles      = {};
@@ -219,7 +219,7 @@ onAuthStateChanged(auth, async (user) => {
     }
     applyRoleBasedNavVisibility();
   } else {
-    currentUserRole = 'admin';
+    currentUserRole = 'public';
     currentUserUid  = null;
     currentUserName = '';
     document.body.classList.remove('is-admin');
@@ -279,12 +279,15 @@ function renderCompetitionsSelector() {
   select.innerHTML = '';
   const keys = Object.keys(globalTournaments);
   const isAdmin = document.body.classList.contains('is-admin');
-  // Público solo ve competencias marcadas isPublic; admin las ve todas
+  const isCoach = (currentUserRole === 'coach');
+  // Admin ve todas; coach y público solo ven las marcadas isPublic
   const visible = keys.filter(k => isAdmin || globalTournaments[k].isPublic === true);
   if (visible.length === 0) {
     select.innerHTML = isAdmin
       ? '<option value="">Sin competencias — crea una abajo</option>'
-      : '<option value="">No hay competencias públicas disponibles</option>';
+      : isCoach
+        ? '<option value="">No hay competencias disponibles actualmente</option>'
+        : '<option value="">No hay competencias públicas disponibles</option>';
   } else {
     visible.forEach(key => {
       const t = globalTournaments[key];
@@ -344,6 +347,13 @@ window.toggleCompetitionPublic = toggleCompetitionPublic;
 function loadSelectedTournamentContext() {
   const id = document.getElementById('globalCompetitionSelect')?.value;
   if (!id) return alert("Selecciona un evento válido.");
+
+  // Doble seguridad: coach no puede entrar a competencias bloqueadas
+  const isAdmin = document.body.classList.contains('is-admin');
+  if (!isAdmin && globalTournaments[id] && globalTournaments[id].isPublic !== true) {
+    return alert("⛔ Esta competencia no está disponible actualmente.");
+  }
+
   currentTournamentId = id;
   attachTournamentRealtimeListeners(id);
   document.getElementById('competition-selector-screen').style.display = 'none';
@@ -359,12 +369,9 @@ function applyRoleBasedNavVisibility() {
   document.querySelectorAll('.role-admin-only').forEach(el => {
     el.style.display = showAdminOnly ? '' : 'none';
   });
+  // El botón Panel Maestro SOLO aparece para admin — nunca para coach ni público
   const btnMaster = document.getElementById('btn-master-panel');
-  if (showAdminOnly) {
-    if (btnMaster) btnMaster.style.display = 'block';
-  } else {
-    if (btnMaster) btnMaster.style.display = 'none';
-  }
+  if (btnMaster) btnMaster.style.display = showAdminOnly ? 'block' : 'none';
 }
 window.applyRoleBasedNavVisibility = applyRoleBasedNavVisibility;
 
