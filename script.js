@@ -112,7 +112,17 @@ document.addEventListener("DOMContentLoaded", () => {
 function initGlobalTournamentsObserver() {
   onValue(ref(db, 'tournaments'), (snapshot) => {
     globalTournaments = snapshot.val() || {};
+    // Construir globalAllTeams con todos los equipos de todos los torneos
+    globalAllTeams = {};
+    Object.entries(globalTournaments).forEach(([tid, t]) => {
+      if (t && t.teams) {
+        Object.entries(t.teams).forEach(([teamId, team]) => {
+          globalAllTeams[teamId] = { ...team, _tournamentId: tid, _tournamentName: t.name || tid };
+        });
+      }
+    });
     renderCompetitionsSelector();
+    renderPlayerRegistry(); // re-render padrón con datos actualizados
   });
 }
 
@@ -349,6 +359,12 @@ function applyRoleBasedNavVisibility() {
   document.querySelectorAll('.role-admin-only').forEach(el => {
     el.style.display = showAdminOnly ? '' : 'none';
   });
+  const btnMaster = document.getElementById('btn-master-panel');
+  if (showAdminOnly) {
+    if (btnMaster) btnMaster.style.display = 'block';
+  } else {
+    if (btnMaster) btnMaster.style.display = 'none';
+  }
 }
 window.applyRoleBasedNavVisibility = applyRoleBasedNavVisibility;
 
@@ -779,8 +795,10 @@ function normalizePlayerName(name) {
 function getUnifiedPlayersList() {
   const list = [];
 
-  // 1) Jugadores registrados por equipo dentro del torneo activo
-  Object.entries(globalTeams).forEach(([teamId, team]) => {
+  // 1) Jugadores registrados por equipo
+  // Si hay un torneo activo usa globalTeams (del torneo), si no usa globalAllTeams (todos los torneos)
+  const teamsSource = Object.keys(globalTeams).length > 0 ? globalTeams : globalAllTeams;
+  Object.entries(teamsSource).forEach(([teamId, team]) => {
     if (!team || !team.players) return;
     Object.entries(team.players).forEach(([playerId, p]) => {
       if (!p || !p.name) return;
@@ -2602,6 +2620,7 @@ window.printPlayerID = printPlayerID;
 // desligados de cualquier torneo/equipo — sirve para expedir credenciales
 // aunque todavía no exista una competencia activa.
 let globalAthletes = {};
+let globalAllTeams = {}; // Todos los equipos de todos los torneos (para Padrón Global sin entrar a competencia)
 let standaloneSearchTerm = '';
 
 function initGlobalAthletesObserver() {
@@ -2786,9 +2805,63 @@ function previewStandalonePlayerPhoto(input) {
 }
 window.previewStandalonePlayerPhoto = previewStandalonePlayerPhoto;
 
+function toggleStandaloneTipo(tipo) {
+  document.getElementById('standalonePersonType').value = tipo;
+
+  const btnAtleta      = document.getElementById('btnTipoAtleta');
+  const btnEntrenador  = document.getElementById('btnTipoEntrenador');
+  const atletaFields   = document.getElementById('standaloneAtletaFields');
+  const entrenadorFields = document.getElementById('standaloneEntrenadorFields');
+  const title          = document.getElementById('standaloneFormTitle');
+  const submitBtn      = document.getElementById('standaloneSubmitBtn');
+  const nameLabel      = document.getElementById('standaloneNameLabel');
+
+  if (tipo === 'entrenador') {
+    // Activar tab entrenador
+    btnEntrenador.style.border     = '2px solid #10b981';
+    btnEntrenador.style.background = '#10b981';
+    btnEntrenador.style.color      = '#fff';
+    btnAtleta.style.border         = '2px solid #334155';
+    btnAtleta.style.background     = 'transparent';
+    btnAtleta.style.color          = '#94a3b8';
+    atletaFields.style.display     = 'none';
+    entrenadorFields.style.display = 'block';
+    title.textContent              = '👨‍🏫 Registrar Entrenador';
+    submitBtn.textContent          = '💾 Registrar Entrenador y Generar ID';
+    nameLabel.textContent          = 'Nombre Completo del Entrenador:';
+    document.getElementById('standalonePlayerName').placeholder = 'Nombre del entrenador';
+    // Poblar dropdown de categorías para entrenador
+    const sel = document.getElementById('standaloneCoachCategory');
+    if (sel && sel.options.length === 0) {
+      sel.innerHTML = '<option value="">— Todas —</option>';
+      Object.entries(categoriesConfig).forEach(([k,v]) => {
+        const o = document.createElement('option');
+        o.value = k; o.textContent = v.label;
+        sel.appendChild(o);
+      });
+    }
+  } else {
+    // Activar tab atleta
+    btnAtleta.style.border         = '2px solid #ff6b00';
+    btnAtleta.style.background     = '#ff6b00';
+    btnAtleta.style.color          = '#fff';
+    btnEntrenador.style.border     = '2px solid #334155';
+    btnEntrenador.style.background = 'transparent';
+    btnEntrenador.style.color      = '#94a3b8';
+    atletaFields.style.display     = 'block';
+    entrenadorFields.style.display = 'none';
+    title.textContent              = '🏃 Registrar Nuevo Atleta';
+    submitBtn.textContent          = '💾 Registrar Atleta y Generar ID';
+    nameLabel.textContent          = 'Nombre Completo:';
+    document.getElementById('standalonePlayerName').placeholder = 'Nombre del niño/joven';
+  }
+}
+window.toggleStandaloneTipo = toggleStandaloneTipo;
+
 async function handleStandalonePlayerSubmit(e) {
   e.preventDefault();
 
+  const tipo = document.getElementById('standalonePersonType').value || 'atleta';
   const uniqueID = generateUniqueAthleteID();
 
   const photoInput = document.getElementById('standalonePlayerPhoto');
@@ -2803,31 +2876,44 @@ async function handleStandalonePlayerSubmit(e) {
     }
   }
 
-  const athleteData = {
+  let personData = {
     playerID: uniqueID,
+    personType: tipo,
     name: document.getElementById('standalonePlayerName').value.trim(),
     photo: photoDataUrl,
-    club: document.getElementById('standalonePlayerClub').value.trim(),
-    category: document.getElementById('standalonePlayerCategory').value,
-    curp: document.getElementById('standalonePlayerCurp').value.toUpperCase(),
-    birth: document.getElementById('standalonePlayerBirth').value,
-    number: document.getElementById('standalonePlayerNumber').value,
-    bloodType: document.getElementById('standalonePlayerBlood').value,
-    responsibleName: document.getElementById('standalonePlayerRespName').value.trim(),
-    responsiblePhone: document.getElementById('standalonePlayerRespPhone').value.trim(),
+    curp: (document.getElementById('standalonePlayerCurp').value || '').toUpperCase(),
+    birth: document.getElementById('standalonePlayerBirth').value || '',
+    phone: document.getElementById('standalonePlayerRespPhone').value.trim(),
+    email: document.getElementById('standalonePlayerEmail').value.trim(),
     timestamp: new Date().toISOString(),
-    // ✅ NUEVO: se marca quién lo registró, para que un entrenador solo pueda ver/editar lo suyo
     createdBy: currentUserUid,
     createdByName: currentUserName
   };
 
-  push(ref(db, 'athletes'), athleteData).then(() => {
-    alert(`✅ Atleta registrado con éxito.\nID Generado: ${uniqueID}`);
+  if (tipo === 'atleta') {
+    personData.club            = document.getElementById('standalonePlayerClub').value.trim();
+    personData.category        = document.getElementById('standalonePlayerCategory').value;
+    personData.number          = document.getElementById('standalonePlayerNumber').value;
+    personData.bloodType       = document.getElementById('standalonePlayerBlood').value;
+    personData.responsibleName = document.getElementById('standalonePlayerRespName').value.trim();
+    personData.responsiblePhone = document.getElementById('standalonePlayerRespPhone').value.trim();
+  } else {
+    // entrenador
+    personData.club     = document.getElementById('standaloneCoachClub').value.trim();
+    personData.category = document.getElementById('standaloneCoachCategory').value;
+  }
+
+  push(ref(db, 'athletes'), personData).then(() => {
+    const label = tipo === 'entrenador' ? 'Entrenador' : 'Atleta';
+    alert(`✅ ${label} registrado con éxito.\nID Generado: ${uniqueID}`);
     e.target.reset();
+    // Reset foto preview
     const previewBox = document.getElementById('standalonePlayerPhotoPreviewBox');
     const fileNameSpan = document.getElementById('standalonePlayerPhotoFileName');
     if (previewBox) previewBox.style.display = 'none';
     if (fileNameSpan) fileNameSpan.textContent = 'Ningún archivo seleccionado';
+    // Volver al tab atleta por defecto
+    toggleStandaloneTipo('atleta');
   });
 }
 window.handleStandalonePlayerSubmit = handleStandalonePlayerSubmit;
@@ -3139,3 +3225,460 @@ function printStandaloneAthleteID(athleteId) {
   });
 }
 window.printStandaloneAthleteID = printStandaloneAthleteID;
+
+// ============================================
+// PANEL MAESTRO DE ADMINISTRADOR
+// ============================================
+
+function openMasterPanel() {
+  if (currentUserRole !== 'admin') return;
+  document.getElementById('admin-master-panel').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  renderMasterResumen();
+}
+
+function closeMasterPanel() {
+  document.getElementById('admin-master-panel').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function showMasterTab(tab) {
+  document.querySelectorAll('.master-tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.master-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('master-tab-' + tab).style.display = 'block';
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'resumen') renderMasterResumen();
+  if (tab === 'competencias') renderMasterCompetencias();
+  if (tab === 'entrenadores') renderMasterEntrenadores();
+  if (tab === 'padron') renderMasterPadron();
+  if (tab === 'accesos') renderMasterAccesos();
+  if (tab === 'patrocinadores') renderMasterPatrocinadores();
+}
+
+// TAB 1: RESUMEN GLOBAL
+async function renderMasterResumen() {
+  const container = document.getElementById('master-tab-resumen');
+  container.innerHTML = '<p style="color:#94a3b8;">Cargando estadísticas...</p>';
+
+  // Contar datos reales de Firebase
+  const tourneysSnap = await get(ref(db, 'tournaments'));
+  const rolesSnap = await get(ref(db, 'roles'));
+  const athletesSnap = await get(ref(db, 'athletes'));
+  const sponsorsSnap = await get(ref(db, 'sponsors'));
+
+  const tournaments = tourneysSnap.val() || {};
+  const roles = rolesSnap.val() || {};
+  const athletes = athletesSnap.val() || {};
+  const sponsors = sponsorsSnap.val() || {};
+
+  let totalTeams = 0, totalTeamPlayers = 0;
+  Object.values(tournaments).forEach(t => {
+    const teams = t.teams || {};
+    totalTeams += Object.keys(teams).length;
+    Object.values(teams).forEach(team => {
+      totalTeamPlayers += Object.keys(team.players || {}).length;
+    });
+  });
+
+  const totalCoaches = Object.values(roles).filter(r => r.role === 'coach').length;
+  const totalAdmins = Object.values(roles).filter(r => r.role === 'admin').length;
+  const totalIndependent = Object.keys(athletes).length;
+  const totalAthletes = totalTeamPlayers + totalIndependent;
+  const totalTourneys = Object.keys(tournaments).length;
+  const totalSponsors = Object.keys(sponsors).length;
+
+  container.innerHTML = `
+    <h3 style="color:#ff6b00; margin-bottom:20px;">📊 Resumen Global del Sistema</h3>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:16px; margin-bottom:32px;">
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalTourneys}</div>
+        <div class="master-stat-label">🏆 Competencias</div>
+      </div>
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalTeams}</div>
+        <div class="master-stat-label">🛡️ Equipos</div>
+      </div>
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalAthletes}</div>
+        <div class="master-stat-label">🏃 Atletas Totales</div>
+      </div>
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalTeamPlayers}</div>
+        <div class="master-stat-label">👕 En Equipos</div>
+      </div>
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalIndependent}</div>
+        <div class="master-stat-label">🆓 Independientes</div>
+      </div>
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalCoaches}</div>
+        <div class="master-stat-label">👨‍🏫 Entrenadores</div>
+      </div>
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalAdmins}</div>
+        <div class="master-stat-label">👑 Admins</div>
+      </div>
+      <div class="master-stat-card">
+        <div class="master-stat-number">${totalSponsors}</div>
+        <div class="master-stat-label">🤝 Patrocinadores</div>
+      </div>
+    </div>
+
+    <h4 style="color:#94a3b8; margin-bottom:12px;">🏆 Estado de Competencias</h4>
+    <table class="master-table">
+      <thead><tr><th>Competencia</th><th>Equipos</th><th>Estado</th></tr></thead>
+      <tbody>
+        ${Object.entries(tournaments).map(([id, t]) => `
+          <tr>
+            <td>${t.name || id}</td>
+            <td>${Object.keys(t.teams || {}).length}</td>
+            <td><span style="background:${t.isPublic ? '#10b981' : '#ef4444'}; color:white; padding:2px 10px; border-radius:20px; font-size:0.75rem;">${t.isPublic ? '🟢 Público' : '🔴 Privado'}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// TAB 2: GESTIÓN DE COMPETENCIAS
+async function renderMasterCompetencias() {
+  const container = document.getElementById('master-tab-competencias');
+  container.innerHTML = '<p style="color:#94a3b8;">Cargando...</p>';
+
+  const snap = await get(ref(db, 'tournaments'));
+  const tournaments = snap.val() || {};
+
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 style="color:#ff6b00;">🏆 Gestión de Competencias</h3>
+      <button onclick="masterCreateTournament()" style="background:#ff6b00; color:white; border:none; border-radius:8px; padding:10px 18px; cursor:pointer; font-weight:bold;">+ Nueva Competencia</button>
+    </div>
+    <table class="master-table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Equipos</th>
+          <th>Partidos</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.entries(tournaments).map(([id, t]) => `
+          <tr>
+            <td style="font-weight:600;">${t.name || id}</td>
+            <td>${Object.keys(t.teams || {}).length}</td>
+            <td>${Object.keys(t.matches || {}).length}</td>
+            <td>
+              <span style="background:${t.isPublic ? '#10b981' : '#64748b'}; color:white; padding:3px 12px; border-radius:20px; font-size:0.75rem;">
+                \s*${t.isPublic ? '🟢 Público' : '⚫ Privado'}
+              </span>
+            </td>
+            <td style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button onclick="masterToggleTournament('${id}', ${t.isPublic})" style="background:${t.isPublic ? '#64748b' : '#10b981'}; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">
+                ${t.isPublic ? '⚫ Privatizar' : '🟢 Publicar'}
+              </button>
+              <button onclick="if(confirm('¿Eliminar esta competencia?')) masterDeleteTournament('${id}')" style="background:#ef4444; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">🗑️ Eliminar</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function masterToggleTournament(id, isPublic) {
+  update(ref(db, `tournaments/${id}`), { isPublic: !isPublic })
+    .then(() => renderMasterCompetencias());
+}
+
+function masterDeleteTournament(id) {
+  remove(ref(db, `tournaments/${id}`))
+    .then(() => renderMasterCompetencias());
+}
+
+function masterCreateTournament() {
+  const name = prompt('Nombre de la nueva competencia:');
+  if (!name) return;
+  const newRef = push(ref(db, 'tournaments'));
+  set(newRef, { name, isPublic: false, createdAt: new Date().toISOString() })
+    .then(() => renderMasterCompetencias());
+}
+
+// TAB 3: GESTIÓN DE ENTRENADORES
+async function renderMasterEntrenadores() {
+  const container = document.getElementById('master-tab-entrenadores');
+  container.innerHTML = '<p style="color:#94a3b8;">Cargando...</p>';
+
+  const snap = await get(ref(db, 'roles'));
+  const roles = snap.val() || {};
+  const coaches = Object.entries(roles).filter(([, r]) => r.role === 'coach');
+
+  container.innerHTML = `
+    <h3 style="color:#ff6b00; margin-bottom:20px;">👨‍🏫 Gestión de Entrenadores</h3>
+
+    <!-- Formulario crear coach -->
+    <div style="background:#1e293b; border-radius:12px; padding:20px; margin-bottom:24px; border:1px solid #334155;">
+      <h4 style="color:#e2e8f0; margin-bottom:12px;">➕ Crear Cuenta de Entrenador</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end;">
+        <div>
+          <label style="color:#94a3b8; font-size:0.8rem;">Nombre</label>
+          <input id="masterCoachName" type="text" placeholder="Nombre completo" style="width:100%; padding:8px; background:#0f172a; border:1px solid #334155; border-radius:6px; color:white; margin-top:4px;">
+        </div>
+        <div>
+          <label style="color:#94a3b8; font-size:0.8rem;">Correo</label>
+          <input id="masterCoachEmail" type="email" placeholder="correo@ejemplo.com" style="width:100%; padding:8px; background:#0f172a; border:1px solid #334155; border-radius:6px; color:white; margin-top:4px;">
+        </div>
+        <div>
+          <label style="color:#94a3b8; font-size:0.8rem;">Contraseña</label>
+          <input id="masterCoachPass" type="password" placeholder="Mínimo 6 caracteres" style="width:100%; padding:8px; background:#0f172a; border:1px solid #334155; border-radius:6px; color:white; margin-top:4px;">
+        </div>
+        <button onclick="masterCreateCoach()" style="background:#ff6b00; color:white; border:none; border-radius:8px; padding:9px 16px; cursor:pointer; font-weight:bold; white-space:nowrap;">Crear Coach</button>
+      </div>
+    </div>
+
+    <!-- Lista de coaches -->
+    <table class="master-table">
+      <thead>
+        <tr><th>Nombre</th><th>Correo</th><th>Estado</th><th>Acciones</th></tr>
+      </thead>
+      <tbody>
+        ${coaches.length === 0 ? '<tr><td colspan="4" style="color:#64748b; text-align:center;">No hay entrenadores registrados</td></tr>' : 
+          coaches.map(([uid, r]) => `
+            <tr>
+              <td>${r.name || 'Sin nombre'}</td>
+              <td>\s*${r.email || uid}</td>
+              <td><span style="background:${r.active !== false ? '#10b981' : '#ef4444'}; color:white; padding:2px 10px; border-radius:20px; font-size:0.75rem;">${r.active !== false ? '✅ Activo' : '🚫 Inactivo'}</span></td>
+              <td style="display:flex; gap:6px;">
+                <button onclick="masterToggleCoach('${uid}', ${r.active !== false})" style="background:${r.active !== false ? '#64748b' : '#10b981'}; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.8rem;">${r.active !== false ? 'Desactivar' : 'Activar'}</button>
+              </td>
+            </tr>
+          `).join('')
+        }
+      </tbody>
+    </table>
+  `;
+}
+
+async function masterCreateCoach() {
+  const name = document.getElementById('masterCoachName').value.trim();
+  const email = document.getElementById('masterCoachEmail').value.trim();
+  const password = document.getElementById('masterCoachPass').value;
+  if (!name || !email || !password) { alert('Completa todos los campos'); return; }
+  if (password.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
+  try {
+    const uid = await createCoachAuthAccount(email, password);
+    if (uid) {
+      await set(ref(db, `roles/${uid}`), { role: 'coach', active: true, name, email, createdAt: new Date().toISOString() });
+      document.getElementById('masterCoachName').value = '';
+      document.getElementById('masterCoachEmail').value = '';
+      document.getElementById('masterCoachPass').value = '';
+      alert(`✅ Entrenador ${name} creado exitosamente`);
+      renderMasterEntrenadores();
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function masterToggleCoach(uid, isActive) {
+  update(ref(db, `roles/${uid}`), { active: !isActive })
+    .then(() => renderMasterEntrenadores());
+}
+
+// TAB 4: PADRÓN GENERAL
+async function renderMasterPadron() {
+  const container = document.getElementById('master-tab-padron');
+  container.innerHTML = '<p style="color:#94a3b8;">Cargando padrón...</p>';
+
+  const [tourneysSnap, athletesSnap] = await Promise.all([
+    get(ref(db, 'tournaments')),
+    get(ref(db, 'athletes'))
+  ]);
+
+  const tournaments = tourneysSnap.val() || {};
+  const independentAthletes = athletesSnap.val() || {};
+
+  const allAthletes = [];
+
+  // Atletas de equipos
+  Object.entries(tournaments).forEach(([tid, t]) => {
+    Object.entries(t.teams || {}).forEach(([teamId, team]) => {
+      Object.entries(team.players || {}).forEach(([pid, player]) => {
+        allAthletes.push({ ...player, _source: 'team', _teamId: teamId, _tournamentId: tid, _playerId: pid, _teamName: team.name, _tournamentName: t.name });
+      });
+    });
+  });
+
+  // Atletas independientes
+  Object.entries(independentAthletes).forEach(([id, a]) => {
+    allAthletes.push({ ...a, _source: 'standalone', _athleteId: id, _teamName: a.club || 'Independiente', _tournamentName: '—' });
+  });
+
+  // Ordenar por nombre
+  allAthletes.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es-MX'));
+
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+      <h3 style="color:#ff6b00;">📋 Padrón General (${allAthletes.length} atletas)</h3>
+      <div style="display:flex; gap:10px;">
+        <input id="masterPadronSearch" type="text" placeholder="🔍 Buscar nombre, CURP, club..." oninput="filterMasterPadron(this.value)" style="padding:8px 12px; background:#1e293b; border:1px solid #334155; border-radius:8px; color:white; width:240px;">
+        <button onclick="exportMasterPadronPDF()" style="background:#7c3aed; color:white; border:none; border-radius:8px; padding:8px 16px; cursor:pointer; font-weight:bold;">📄 Exportar PDF</button>
+      </div>
+    </div>
+    <div id="master-padron-table-container">
+      ${buildMasterPadronTable(allAthletes)}
+    </div>
+  `;
+
+  // Guardar lista para búsqueda
+  window._masterAllAthletes = allAthletes;
+}
+
+function buildMasterPadronTable(athletes) {
+  if (athletes.length === 0) return '<p style="color:#64748b; text-align:center;">No hay atletas registrados</p>';
+  return `
+    <table class="master-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nombre</th>
+          <th>Club / Equipo</th>
+          <th>Competencia</th>
+          <th>CURP</th>
+          <th>F. Nacimiento</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${athletes.map((a, i) => `
+          <tr>
+            <td style="color:#64748b;">${i + 1}</td>
+            <td style="font-weight:600;">
+              ${a.photo ? `<img src="${a.photo}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:6px;">` : ''}
+              ${a.name || '—'}
+            </td>
+            <td>${a._teamName || '—'}</td>
+            <td><span style="font-size:0.75rem; color:#94a3b8;">${a._tournamentName || '—'}</span></td>
+            <td style="font-family:monospace; font-size:0.8rem;">${a.curp || '—'}</td>
+            <td style="font-size:0.8rem;">${a.birthDate || a.birth || '—'}</td>
+            <td>
+              <button onclick="masterGenerateCredential(${i})" style="background:#ff6b00; color:white; border:none; border-radius:6px; padding:3px 10px; cursor:pointer; font-size:0.8rem;">🪪</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function filterMasterPadron(term) {
+  const filtered = (window._masterAllAthletes || []).filter(a => {
+    const t = term.toLowerCase();
+    return (a.name || '').toLowerCase().includes(t) ||
+           (a.curp || '').toLowerCase().includes(t) ||
+           (a._teamName || '').toLowerCase().includes(t) ||
+           (a.club || '').toLowerCase().includes(t);
+  });
+  document.getElementById('master-padron-table-container').innerHTML = buildMasterPadronTable(filtered);
+}
+
+function masterGenerateCredential(index) {
+  const a = window._masterAllAthletes[index];
+  if (!a) return;
+  const data = {
+    name: a.name, photo: a.photo, curp: a.curp,
+    birthDate: a.birthDate || a.birth, number: a.number,
+    teamName: a._teamName, blood: a.blood || a.bloodType,
+    respName: a.responsibleName || a.respName,
+    respPhone: a.responsiblePhone || a.respPhone,
+    category: a.category, id: a.playerID || a.athleteID
+  };
+  openCredentialWindow(data);
+}
+
+async function exportMasterPadronPDF() {
+  const athletes = window._masterAllAthletes || [];
+  if (athletes.length === 0) { alert('No hay atletas para exportar'); return; }
+  alert(`Generando PDF con ${athletes.length} credenciales... Espera un momento.`);
+  // Reutilizar función existente de exportAllCredentialsPDF si existe, si no, llamar openCredentialWindow para cada uno
+  if (typeof exportAllCredentialsPDF === 'function') {
+    exportAllCredentialsPDF();
+  } else {
+    alert('Función de exportación masiva no disponible. Genera credenciales individualmente con 🪪');
+  }
+}
+
+// TAB 5: GESTIÓN DE ACCESOS
+async function renderMasterAccesos() {
+  const container = document.getElementById('master-tab-accesos');
+  container.innerHTML = '<p style="color:#94a3b8;">Cargando accesos...</p>';
+
+  const snap = await get(ref(db, 'roles'));
+  const roles = snap.val() || {};
+
+  container.innerHTML = `
+    <h3 style="color:#ff6b00; margin-bottom:20px;">🔑 Gestión de Accesos</h3>
+    <table class="master-table">
+      <thead>
+        <tr><th>Nombre</th><th>Correo / UID</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr>
+      </thead>
+      <tbody>
+        ${Object.keys(roles).length === 0 ? '<tr><td colspan="5" style="color:#64748b; text-align:center;">No hay usuarios registrados</td></tr>' :
+          Object.entries(roles).map(([uid, r]) => `
+            <tr>
+              <td>${r.name || 'Sin nombre'}</td>
+              <td style="font-size:0.75rem; color:#94a3b8;">\s*${r.email || uid}</td>
+              <td>
+                <span style="background:${r.role === 'admin' ? '#7c3aed' : '#0284c7'}; color:white; padding:2px 10px; border-radius:20px; font-size:0.75rem;">
+                  ${r.role === 'admin' ? '👑 Admin' : '👨‍🏫 Coach'}
+                </span>
+              </td>
+              <td><span style="background:${r.active !== false ? '#10b981' : '#ef4444'}; color:white; padding:2px 10px; border-radius:20px; font-size:0.75rem;">${r.active !== false ? '✅ Activo' : '🚫 Inactivo'}</span></td>
+              <td style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button onclick="masterToggleUserRole('${uid}', '${r.role}')" style="background:#7c3aed; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.75rem;">
+                  ${r.role === 'admin' ? '→ Coach' : '→ Admin'}
+                </button>
+                <button onclick="masterToggleUserActive('${uid}', ${r.active !== false})" style="background:${r.active !== false ? '#ef4444' : '#10b981'}; color:white; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:0.75rem;">
+                  ${r.active !== false ? 'Desactivar' : 'Activar'}
+                </button>
+              </td>
+            </tr>
+          `).join('')
+        }
+      </tbody>
+    </table>
+  `;
+}
+
+function masterToggleUserRole(uid, currentRole) {
+  const newRole = currentRole === 'admin' ? 'coach' : 'admin';
+  if (!confirm(`¿Cambiar rol a ${newRole}?`)) return;
+  update(ref(db, `roles/${uid}`), { role: newRole })
+    .then(() => renderMasterAccesos());
+}
+
+function masterToggleUserActive(uid, isActive) {
+  update(ref(db, `roles/${uid}`), { active: !isActive })
+    .then(() => renderMasterAccesos());
+}
+
+window.openMasterPanel = openMasterPanel;
+window.closeMasterPanel = closeMasterPanel;
+// TAB: PATROCINADORES
+async function renderMasterPatrocinadores() {
+  // El sponsorForm ya está en el HTML — solo necesitamos cargar la lista actual
+  const sponsorsSnap = await get(ref(db, `tournaments/${currentTournamentId}/sponsors`));
+  renderAdminSponsorList(sponsorsSnap.val());
+}
+window.renderMasterPatrocinadores = renderMasterPatrocinadores;
+
+window.showMasterTab = showMasterTab;
+window.masterToggleTournament = masterToggleTournament;
+window.masterDeleteTournament = masterDeleteTournament;
+window.masterCreateTournament = masterCreateTournament;
+window.masterCreateCoach = masterCreateCoach;
+window.masterToggleCoach = masterToggleCoach;
+window.filterMasterPadron = filterMasterPadron;
+window.masterGenerateCredential = masterGenerateCredential;
+window.exportMasterPadronPDF = exportMasterPadronPDF;
+window.masterToggleUserRole = masterToggleUserRole;
+window.masterToggleUserActive = masterToggleUserActive;
