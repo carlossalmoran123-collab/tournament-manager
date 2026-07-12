@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue, remove, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove, update, get, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const APP_LOGO_URL = "https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png";
 
@@ -101,8 +101,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('editMatchCategory')?.addEventListener('change', updateEditMatchTeamsDropdowns);
 
   initGlobalTournamentsObserver();
-  initGlobalAthletesObserver();
   initRolesObserver();
+  // initGlobalAthletesObserver() se llama desde onAuthStateChanged
+  // después de conocer el rol del usuario
   populateStandaloneCategoryDropdown(); // categoriesConfig es estático, no depende de datos de Firebase
 });
 
@@ -218,6 +219,7 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
     applyRoleBasedNavVisibility();
+    initGlobalAthletesObserver(); // inicializar AHORA que ya sabemos el rol
   } else {
     currentUserRole = 'public';
     currentUserUid  = null;
@@ -366,12 +368,12 @@ function loadSelectedTournamentContext() {
 // Estos elementos deben ocultarse SIEMPRE que el rol no sea 'admin', sin importar is-admin.
 function applyRoleBasedNavVisibility() {
   const showAdminOnly = currentUserRole === 'admin';
-  document.querySelectorAll('.role-admin-only').forEach(el => {
-    el.style.display = showAdminOnly ? '' : 'none';
-  });
-  // El botón Panel Maestro SOLO aparece para admin — nunca para coach ni público
-  const btnMaster = document.getElementById('btn-master-panel');
-  if (btnMaster) btnMaster.style.display = showAdminOnly ? 'block' : 'none';
+  // Usar clase en body para controlar visibilidad con CSS — más seguro que manipular display uno a uno
+  if (showAdminOnly) {
+    document.body.classList.add('is-admin-confirmed');
+  } else {
+    document.body.classList.remove('is-admin-confirmed');
+  }
 }
 window.applyRoleBasedNavVisibility = applyRoleBasedNavVisibility;
 
@@ -974,42 +976,122 @@ function openCredentialWindow(data) {
   const { name, playerID } = data;
   const cardMarkup = buildCredentialCardMarkup(data);
 
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <html>
-    <head>
-      <title>Credencial - ${name}</title>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
-      <style>
-        body { font-family: 'Helvetica', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
-        ${CREDENTIAL_CARD_CSS}
-      </style>
-    </head>
-    <body>
-      <div class="no-print" style="margin-bottom: 20px; text-align:center;">
-        <button onclick="window.print()" style="padding: 10px 20px; cursor:pointer; font-weight:bold; margin-right:10px;">IMPRIMIR CREDENCIAL</button>
-        <button id="btnDownloadImg" style="padding: 10px 20px; cursor:pointer; font-weight:bold; background:#10b981; color:#fff; border:none; border-radius:6px;">DESCARGAR COMO IMAGEN (PNG)</button>
-        <p><small>Impresión: activa "Gráficos de fondo" en el diálogo de impresión para conservar los colores. Imagen: lista para imprimir en tienda de fotocopiado.</small></p>
+  // Usar modal interno en lugar de window.open (evita bloqueo de popups)
+  const existing = document.getElementById('credentialModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'credentialModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:20px;box-sizing:border-box;';
+
+  modal.innerHTML = `
+    <div style="width:100%;max-width:700px;">
+      <!-- Controles -->
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;">
+        <button onclick="printCredentialModal()" style="padding:10px 22px;cursor:pointer;font-weight:bold;background:#2563eb;color:white;border:none;border-radius:8px;font-size:0.95rem;">🖨️ Imprimir</button>
+        <button onclick="downloadCredentialAsImage('${(name||'').replace(/'/g,"\'")}','${playerID||''}')" style="padding:10px 22px;cursor:pointer;font-weight:bold;background:#10b981;color:white;border:none;border-radius:8px;font-size:0.95rem;">⬇️ Descargar PNG</button>
+        <button onclick="document.getElementById('credentialModal').remove()" style="padding:10px 22px;cursor:pointer;font-weight:bold;background:#64748b;color:white;border:none;border-radius:8px;font-size:0.95rem;">✕ Cerrar</button>
       </div>
-      <div id="credWrapper">
-      ${cardMarkup}
+      <p style="color:#94a3b8;text-align:center;font-size:0.78rem;margin-bottom:16px;">Impresión: activa "Gráficos de fondo" en el diálogo para conservar los colores.</p>
+      <!-- Credencial -->
+      <div id="credWrapper" style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+        <style>${CREDENTIAL_CARD_CSS}</style>
+        ${cardMarkup}
       </div>
-      <script>
-        document.getElementById('btnDownloadImg').addEventListener('click', function() {
-          html2canvas(document.getElementById('credWrapper'), { scale: 3, backgroundColor: '#f4f4f4' }).then(function(canvas) {
-            const link = document.createElement('a');
-            link.download = 'Credencial_${playerID}_${(name || '').replace(/\s+/g, '_')}.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-          }).catch(function(err) {
-            alert('No se pudo generar la imagen: ' + err);
-          });
-        });
-      <\/script>
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
+    </div>
+  `;
+
+  // Cerrar panel maestro temporalmente si está abierto (evita z-index conflicts)
+  const masterPanel = document.getElementById('admin-master-panel');
+  const masterWasOpen = masterPanel && masterPanel.style.display !== 'none';
+  if (masterWasOpen) {
+    masterPanel.style.zIndex = '9000'; // bajar para que el modal quede encima
+  }
+
+  // Cerrar modal restaura el panel maestro
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      modal.remove();
+      if (masterWasOpen && masterPanel) masterPanel.style.zIndex = '9999';
+    }
+  });
+
+  // Parchear el botón cerrar para restaurar z-index
+  const closeBtn = modal.querySelector('button:last-child');
+  if (closeBtn) {
+    const orig = closeBtn.getAttribute('onclick');
+    closeBtn.onclick = () => {
+      modal.remove();
+      if (masterWasOpen && masterPanel) masterPanel.style.zIndex = '9999';
+    };
+  }
+
+  document.body.appendChild(modal);
+}
+
+function printCredentialModal() {
+  const wrapper = document.getElementById('credWrapper');
+  if (!wrapper) return;
+
+  // Extraer solo las tarjetas (sin el <style> que ya va aparte)
+  const cardsHTML = Array.from(wrapper.querySelectorAll('.card'))
+    .map(el => el.outerHTML).join('\n');
+
+  const fullHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      body { margin: 0; padding: 20px; display: flex; flex-direction: column;
+             align-items: center; gap: 20px; background: #f4f4f4;
+             font-family: Helvetica, Arial, sans-serif; }
+      ${CREDENTIAL_CARD_CSS}
+      @media print { body { padding: 10px; } .card { page-break-inside: avoid; } }
+    </style>
+  </head><body>${cardsHTML}</body></html>`;
+
+  // Abrir ventana de impresión (método más confiable cross-browser)
+  const w = window.open('', '_blank', 'width=800,height=600');
+  if (!w) {
+    // Si el popup fue bloqueado, usar iframe como fallback
+    const oldFrame = document.getElementById('_printFrame');
+    if (oldFrame) oldFrame.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = '_printFrame';
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open(); doc.write(fullHTML); doc.close();
+    setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 600);
+    return;
+  }
+  w.document.write(fullHTML);
+  w.document.close();
+  w.focus();
+  // Esperar a que carguen las imágenes antes de imprimir
+  const imgs = w.document.images;
+  if (imgs.length === 0) {
+    setTimeout(() => w.print(), 300);
+  } else {
+    let loaded = 0;
+    const tryPrint = () => { if (++loaded >= imgs.length) setTimeout(() => w.print(), 200); };
+    Array.from(imgs).forEach(img => {
+      if (img.complete) tryPrint();
+      else { img.onload = tryPrint; img.onerror = tryPrint; }
+    });
+  }
+}
+
+function downloadCredentialAsImage(name, playerID) {
+  const wrapper = document.getElementById('credWrapper');
+  if (!wrapper) return;
+  if (typeof html2canvas === 'undefined') {
+    return alert('Cargando librerías, intenta en unos segundos.');
+  }
+  html2canvas(wrapper, { scale: 3, backgroundColor: '#f4f4f4' }).then(canvas => {
+    const link = document.createElement('a');
+    link.download = `Credencial_${playerID}_${(name || '').replace(/\s+/g, '_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }).catch(err => alert('No se pudo generar la imagen: ' + err));
 }
 
 async function exportAllCredentialsPDF() {
@@ -2601,7 +2683,8 @@ function printPlayerID(teamId, playerId) {
   const p = team.players[playerId];
   if (!p) return;
 
-  const categoryLabel = categoriesConfig[team.categoryRegistered]?.label?.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').trim() || '---';
+  const rawCat2 = categoriesConfig[team.categoryRegistered]?.label || team.categoryRegistered || '---';
+  const categoryLabel = rawCat2.replace(/[^\u0000-\u00FF ]/g, '').trim() || rawCat2;
 
   openCredentialWindow({
     name: p.name,
@@ -2631,11 +2714,38 @@ let globalAllTeams = {}; // Todos los equipos de todos los torneos (para Padrón
 let standaloneSearchTerm = '';
 
 function initGlobalAthletesObserver() {
-  onValue(ref(db, 'athletes'), (snapshot) => {
-    globalAthletes = snapshot.val() || {};
-    renderStandaloneAthleteList();
-    renderPlayerRegistry();
-  });
+  if (currentUserRole === 'coach' && currentUserUid) {
+    // Coach: solo lee SUS propios atletas (filtra por createdBy en Firebase)
+    const coachQuery = query(
+      ref(db, 'athletes'),
+      orderByChild('createdBy'),
+      equalTo(currentUserUid)
+    );
+    onValue(coachQuery, (snapshot) => {
+      globalAthletes = snapshot.val() || {};
+      renderStandaloneAthleteList();
+      renderPlayerRegistry();
+    }, (err) => {
+      console.warn('Coach: error leyendo atletas filtrados:', err.message);
+      // Fallback: leer todos y filtrar en cliente
+      onValue(ref(db, 'athletes'), (snapshot) => {
+        const all = snapshot.val() || {};
+        globalAthletes = {};
+        Object.entries(all).forEach(([k, v]) => {
+          if (v && v.createdBy === currentUserUid) globalAthletes[k] = v;
+        });
+        renderStandaloneAthleteList();
+        renderPlayerRegistry();
+      });
+    });
+  } else {
+    // Admin: lee todos
+    onValue(ref(db, 'athletes'), (snapshot) => {
+      globalAthletes = snapshot.val() || {};
+      renderStandaloneAthleteList();
+      renderPlayerRegistry();
+    });
+  }
 }
 
 // ============================================
@@ -2946,67 +3056,126 @@ function renderStandaloneAthleteList() {
   const wasFocused = activeEl && activeEl.id === 'standaloneSearchInput';
   const cursorPos  = wasFocused ? activeEl.selectionStart : null;
 
-  let athletes = Object.entries(globalAthletes)
+  let allEntries = Object.entries(globalAthletes)
     .sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''));
 
-  // ✅ Un entrenador solo ve SUS propios atletas; el admin los ve todos
+  // Coach solo ve los suyos
   if (currentUserRole === 'coach') {
-    athletes = athletes.filter(([_, p]) => p.createdBy === currentUserUid);
+    allEntries = allEntries.filter(([_, p]) => p.createdBy === currentUserUid);
   }
 
-  const totalCount = athletes.length;
+  // Separar atletas y entrenadores
+  let athletes  = allEntries.filter(([_, p]) => p.personType !== 'entrenador');
+  let coaches   = allEntries.filter(([_, p]) => p.personType === 'entrenador');
 
+  const totalAthletes = athletes.length;
+  const totalCoaches  = coaches.length;
+
+  // Aplicar búsqueda a ambos grupos
   if (standaloneSearchTerm) {
     const term = standaloneSearchTerm.toLowerCase();
-    athletes = athletes.filter(([_, p]) =>
+    const match = ([_, p]) =>
       (p.name || '').toLowerCase().includes(term) ||
       (p.club || '').toLowerCase().includes(term) ||
-      String(p.playerID || '').toLowerCase().includes(term)
-    );
+      String(p.playerID || '').toLowerCase().includes(term);
+    athletes = athletes.filter(match);
+    coaches  = coaches.filter(match);
   }
 
   const showOwnerCol = currentUserRole !== 'coach';
 
-  let html = `<h4>${currentUserRole === 'coach' ? 'Mis Atletas Registrados' : 'Atletas Registrados'} <span style="font-size:0.75rem; color:#aaa; font-weight:normal;">(${athletes.length}/${totalCount})</span></h4>
-    <input type="text" id="standaloneSearchInput" placeholder="🔍 Buscar por nombre, club o ID..." value="${standaloneSearchTerm}"
-      oninput="filterStandaloneAthletes(this.value)"
-      style="width:100%; padding:8px 12px; margin:8px 0 12px 0; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#fff; box-sizing:border-box;">
-    <div style="overflow-x:auto;">
-    <table style="width:100%; font-size:0.75rem; border-collapse:collapse; background:#111; color:white;">
-      <thead>
-        <tr style="background:#222; color:#ff6b00;">
-          <th>Foto</th><th>ID / #</th><th>Nombre / Club</th><th>Categoría</th><th>Médico</th><th>Responsable</th>${showOwnerCol ? '<th>Entrenador</th>' : ''}<th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>`;
-
-  if (athletes.length === 0) {
-    html += `<tr><td colspan="${showOwnerCol ? 8 : 7}" style="text-align:center; padding:15px; color:#888; font-style:italic;">No se encontraron atletas.</td></tr>`;
-  }
-
-  athletes.forEach(([athleteId, p]) => {
+  // ── Helper: fila de atleta ──────────────────────────────────────────────────
+  const buildAthleteRow = ([athleteId, p]) => {
     const catLabel = categoriesConfig[p.category]?.label || p.category || '---';
     const editable = canModifyAthlete(athleteId);
-    html += `
+    return `
       <tr style="border-bottom:1px solid #333;">
-        <td style="padding:5px;"><img src="${p.photo}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;"></td>
+        <td style="padding:5px;"><img src="${p.photo || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;"></td>
         <td style="text-align:center;"><strong>${p.playerID}</strong><br>#${p.number || ''}</td>
         <td style="padding:5px;">${p.name}<br><small style="color:gray;">${p.club || ''}</small></td>
-        <td style="text-align:center; font-size:0.7rem;">${catLabel}</td>
-        <td style="text-align:center;">🩸 ${p.bloodType}<br>${p.birth}</td>
-        <td style="padding:5px;">${p.responsibleName}<br>📞 ${p.responsiblePhone}</td>
-        ${showOwnerCol ? `<td style="text-align:center; font-size:0.7rem; color:#aaa;">${p.createdByName || '---'}</td>` : ''}
-        <td style="text-align:center; white-space:nowrap;">
-          ${currentUserRole === 'admin' ? `<button onclick="printStandaloneAthleteID('${athleteId}')" title="Imprimir Credencial" style="background:#10b981; color:white; border:none; padding:5px; border-radius:4px; cursor:pointer; margin-right:5px;">🪪</button>` : ''}
-          ${editable ? `
-          <button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155; color:white; border:none; padding:5px; border-radius:4px; cursor:pointer; margin-right:5px;">✏️</button>
-          <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:none; border:none; color:red; cursor:pointer;">🗑️</button>` : `
-          <span style="color:#555; font-size:0.7rem;" title="Solo el entrenador que lo registró puede editarlo">🔒</span>`}
+        <td style="text-align:center;font-size:0.7rem;">${catLabel}</td>
+        <td style="text-align:center;">🩸 ${p.bloodType || '--'}<br>${p.birth || '--'}</td>
+        <td style="padding:5px;">${p.responsibleName || '--'}<br>📞 ${p.responsiblePhone || '--'}</td>
+        ${showOwnerCol ? `<td style="text-align:center;font-size:0.7rem;color:#aaa;">${p.createdByName || '---'}</td>` : ''}
+        <td style="padding:4px;">
+          <div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;align-items:center;">
+            ${currentUserRole === 'admin' ? `<button onclick="printStandaloneAthleteID('${athleteId}')" title="Imprimir Credencial" style="background:#10b981;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🪪</button>` : ''}
+            ${editable ? `<button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">✏️</button>
+            <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:#7f1d1d;border:none;color:#fca5a5;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🗑️</button>` : `<span style="color:#555;font-size:0.7rem;" title="Solo el entrenador que lo registró puede editarlo">🔒</span>`}
+          </div>
         </td>
       </tr>`;
-  });
+  };
 
-  html += `</tbody></table></div>`;
+  // ── Helper: fila de entrenador ──────────────────────────────────────────────
+  const buildCoachRow = ([athleteId, p]) => {
+    const catLabel = categoriesConfig[p.category]?.label || p.category || '---';
+    const editable = canModifyAthlete(athleteId);
+    return `
+      <tr style="border-bottom:1px solid #1e3a2f;">
+        <td style="padding:5px;"><img src="${p.photo || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #10b981;"></td>
+        <td style="text-align:center;"><strong style="color:#10b981;">${p.playerID}</strong></td>
+        <td style="padding:5px;font-weight:bold;">${p.name}<br><small style="color:#10b981;font-weight:normal;">Club: ${p.club || '--'}</small></td>
+        <td style="text-align:center;font-size:0.7rem;">${catLabel}</td>
+        <td style="padding:5px;">${p.phone ? '📞 ' + p.phone : '--'}<br><small style="color:#aaa;">${p.email || ''}</small></td>
+        <td style="padding:5px;font-size:0.7rem;">${p.birth || '--'}<br><small style="color:#555;">${p.curp || ''}</small></td>
+        ${showOwnerCol ? `<td style="text-align:center;font-size:0.7rem;color:#aaa;">${p.createdByName || '---'}</td>` : ''}
+        <td style="padding:4px;">
+          <div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;align-items:center;">
+            ${editable ? `<button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">✏️</button>
+            <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:#7f1d1d;border:none;color:#fca5a5;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🗑️</button>` : `<span style="color:#555;font-size:0.7rem;">🔒</span>`}
+          </div>
+        </td>
+      </tr>`;
+  };
+
+  // ── Construir HTML completo ─────────────────────────────────────────────────
+  let html = `
+    <input type="text" id="standaloneSearchInput" placeholder="🔍 Buscar por nombre, club o ID..." value="${standaloneSearchTerm}"
+      oninput="filterStandaloneAthletes(this.value)"
+      style="width:100%; padding:8px 12px; margin:8px 0 16px 0; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#fff; box-sizing:border-box;">
+
+    <!-- SECCIÓN ATLETAS -->
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <h4 style="margin:0; color:#ff6b00;">🏃 Atletas Registrados</h4>
+      <span style="background:#ff6b00; color:#fff; font-size:0.7rem; font-weight:bold; padding:2px 8px; border-radius:10px;">${athletes.length}/${totalAthletes}</span>
+    </div>
+    <div style="overflow-x:auto; margin-bottom:30px;">
+      <table style="width:100%; font-size:0.75rem; border-collapse:collapse; background:#111; color:white;">
+        <thead>
+          <tr style="background:#222; color:#ff6b00;">
+            <th>Foto</th><th>ID / #</th><th>Nombre / Club</th><th>Categoría</th><th>Médico</th><th>Responsable</th>${showOwnerCol ? '<th>Registrado por</th>' : ''}<th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${athletes.length === 0
+            ? `<tr><td colspan="${showOwnerCol ? 8 : 7}" style="text-align:center;padding:15px;color:#888;font-style:italic;">No se encontraron atletas.</td></tr>`
+            : athletes.map(buildAthleteRow).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SECCIÓN ENTRENADORES -->
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <h4 style="margin:0; color:#10b981;">👨‍🏫 Entrenadores con Credencial</h4>
+      <span style="background:#10b981; color:#fff; font-size:0.7rem; font-weight:bold; padding:2px 8px; border-radius:10px;">${coaches.length}/${totalCoaches}</span>
+      ${coaches.length === 0 ? '<span style="font-size:0.75rem; color:#555; font-style:italic;">Ningún entrenador ha completado su registro aún.</span>' : ''}
+    </div>
+    ${coaches.length > 0 ? `
+    <div style="overflow-x:auto;">
+      <table style="width:100%; font-size:0.75rem; border-collapse:collapse; background:#0a1a12; color:white; border:1px solid #1e3a2f;">
+        <thead>
+          <tr style="background:#0f2d1f; color:#10b981;">
+            <th>Foto</th><th>ID</th><th>Nombre / Club</th><th>Categoría</th><th>Contacto</th><th>Nacimiento / CURP</th>${showOwnerCol ? '<th>Registrado por</th>' : ''}<th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${coaches.map(buildCoachRow).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}
+  `;
+
   container.innerHTML = html;
 
   if (wasFocused) {
@@ -3214,7 +3383,8 @@ function printStandaloneAthleteID(athleteId) {
   const p = globalAthletes[athleteId];
   if (!p) return;
 
-  const categoryLabel = categoriesConfig[p.category]?.label?.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').trim() || '---';
+  const rawCatLabel = categoriesConfig[p.category]?.label || p.category || '---';
+  const categoryLabel = rawCatLabel.replace(/[^\x00-\x7E\xC0-\xFF ]/g, '').trim() || rawCatLabel;
 
   openCredentialWindow({
     name: p.name,
@@ -3536,8 +3706,13 @@ async function renderMasterPadron() {
     </div>
   `;
 
-  // Guardar lista para búsqueda
+  // Guardar lista para búsqueda + mapa por ID para acceso seguro
   window._masterAllAthletes = allAthletes;
+  window._masterAthletesMap = {};
+  allAthletes.forEach(a => {
+    const key = a._athleteId || a._playerId;
+    if (key) window._masterAthletesMap[key] = a;
+  });
 }
 
 function buildMasterPadronTable(athletes) {
@@ -3567,8 +3742,14 @@ function buildMasterPadronTable(athletes) {
             <td><span style="font-size:0.75rem; color:#94a3b8;">${a._tournamentName || '—'}</span></td>
             <td style="font-family:monospace; font-size:0.8rem;">${a.curp || '—'}</td>
             <td style="font-size:0.8rem;">${a.birthDate || a.birth || '—'}</td>
-            <td>
-              <button onclick="masterGenerateCredential(${i})" style="background:#ff6b00; color:white; border:none; border-radius:6px; padding:3px 10px; cursor:pointer; font-size:0.8rem;">🪪</button>
+            <td style="padding:4px;">
+              <div style="display:flex; flex-wrap:nowrap; gap:4px; align-items:center; justify-content:center;">
+                <button onclick="masterGenerateCredentialById('${a._athleteId || a._playerId || ''}')" title="Generar Credencial" style="background:#10b981; color:white; border:none; border-radius:6px; padding:5px 8px; cursor:pointer; font-size:0.85rem;">🪪</button>
+                ${a._source === 'standalone'
+                  ? `<button onclick="masterEditAthlete('${a._athleteId || ''}')" title="Editar" style="background:#334155; color:white; border:none; border-radius:6px; padding:5px 8px; cursor:pointer; font-size:0.85rem;">✏️</button>
+                     <button onclick="masterDeleteAthlete('${a._source}','${a._athleteId || ''}','${a._tournamentId || ''}','${a._teamId || ''}','${a._playerId || ''}','${(a.name||'').replace(/'/g,'')}')" title="Eliminar" style="background:#7f1d1d; color:#fca5a5; border:none; border-radius:6px; padding:5px 8px; cursor:pointer; font-size:0.85rem;">🗑️</button>`
+                  : `<button onclick="masterDeleteAthlete('${a._source}','${a._athleteId || ''}','${a._tournamentId || ''}','${a._teamId || ''}','${a._playerId || ''}','${(a.name||'').replace(/'/g,'')}')" title="Eliminar" style="background:#7f1d1d; color:#fca5a5; border:none; border-radius:6px; padding:5px 8px; cursor:pointer; font-size:0.85rem;">🗑️</button>`}
+              </div>
             </td>
           </tr>
         `).join('')}
@@ -3589,17 +3770,32 @@ function filterMasterPadron(term) {
 }
 
 function masterGenerateCredential(index) {
-  const a = window._masterAllAthletes[index];
+  const a = window._masterAllAthletes?.[index];
   if (!a) return;
-  const data = {
-    name: a.name, photo: a.photo, curp: a.curp,
-    birthDate: a.birthDate || a.birth, number: a.number,
-    teamName: a._teamName, blood: a.blood || a.bloodType,
-    respName: a.responsibleName || a.respName,
-    respPhone: a.responsiblePhone || a.respPhone,
-    category: a.category, id: a.playerID || a.athleteID
-  };
-  openCredentialWindow(data);
+  masterGenerateCredentialById(a._athleteId || a._playerId || '');
+}
+
+function masterGenerateCredentialById(id) {
+  const a = (window._masterAthletesMap || {})[id] ||
+            (window._masterAllAthletes || []).find(x => (x._athleteId || x._playerId) === id);
+  if (!a) return alert('No se encontró el atleta.');
+  const rawLabel = (categoriesConfig?.[a.category]?.label) || a.category || '---';
+  const categoryLabel = rawLabel.replace(/[^\x00-\x7E\xC0-\xFF ]/g, '').trim() || rawLabel;
+
+  openCredentialWindow({
+    name:             a.name,
+    club:             a._teamName || a.club || '---',
+    categoryLabel,
+    photo:            a.photo,
+    playerID:         a.playerID || a.athleteID || '---',
+    vigenciaTexto:    calcularVigencia(a.timestamp),
+    curp:             a.curp,
+    birth:            a.birthDate || a.birth,
+    bloodType:        a.blood || a.bloodType,
+    responsibleName:  a.responsibleName || a.respName,
+    responsiblePhone: a.responsiblePhone || a.respPhone,
+    number:           a.number
+  });
 }
 
 async function exportMasterPadronPDF() {
@@ -3613,6 +3809,197 @@ async function exportMasterPadronPDF() {
     alert('Función de exportación masiva no disponible. Genera credenciales individualmente con 🪪');
   }
 }
+
+// EDICIÓN DE ATLETA DESDE EL PADRÓN GENERAL
+function masterEditAthlete(athleteId) {
+  if (!athleteId) return alert('Solo se pueden editar atletas independientes desde aquí.');
+  const a = (window._masterAthletesMap || {})[athleteId] || globalAthletes?.[athleteId];
+  if (!a) return alert('No se encontró el atleta.');
+
+  // Crear modal de edición inline
+  const existing = document.getElementById('masterEditModal');
+  if (existing) existing.remove();
+
+  const categoriesOptions = Object.entries(categoriesConfig)
+    .map(([k,v]) => `<option value="${k}" ${a.category === k ? 'selected' : ''}>${v.label}</option>`)
+    .join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'masterEditModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
+  modal.innerHTML = `
+    <div style="background:#1e293b;border-radius:16px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;border:1px solid #334155;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h3 style="color:#ff6b00;margin:0;">✏️ Editar Atleta</h3>
+        <button onclick="document.getElementById('masterEditModal').remove()" style="background:#334155;color:white;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;">✕ Cerrar</button>
+      </div>
+
+      <div style="display:grid;gap:12px;">
+        <div>
+          <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Nombre Completo</label>
+          <input id="meNombre" value="${a.name || ''}" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Club / Equipo</label>
+            <input id="meClub" value="${a.club || ''}" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Categoría</label>
+            <select id="meCategoria" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+              ${categoriesOptions}
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">CURP</label>
+            <input id="meCurp" value="${a.curp || ''}" maxlength="18" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;text-transform:uppercase;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">F. Nacimiento</label>
+            <input id="meNacimiento" type="date" value="${a.birth || ''}" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Número (#)</label>
+            <input id="meNumero" value="${a.number || ''}" type="number" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Tipo de Sangre</label>
+            <select id="meSangre" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+              ${['O+','O-','A+','A-','B+','B-','AB+','AB-'].map(t => `<option ${(a.bloodType||a.blood)===t?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Responsable (Padre/Tutor)</label>
+          <input id="meResponsable" value="${a.responsibleName || a.respName || ''}" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Teléfono</label>
+            <input id="meTelefono" value="${a.phone || a.responsiblePhone || a.respPhone || ''}" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">Correo</label>
+            <input id="meEmail" type="email" value="${a.email || ''}" style="width:100%;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:white;box-sizing:border-box;">
+          </div>
+        </div>
+
+        <!-- Foto -->
+        <div>
+          <label style="color:#94a3b8;font-size:0.8rem;display:block;margin-bottom:4px;">📷 Cambiar Foto (opcional)</label>
+          <label style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:#ff6b00;color:white;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:bold;">
+            📤 Subir nueva foto
+            <input type="file" id="meFoto" accept="image/png,image/jpeg" style="display:none;" onchange="previewMasterEditPhoto(this)">
+          </label>
+          <div id="meFotoPreview" style="margin-top:8px;">
+            ${a.photo ? `<img src="${a.photo}" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #ff6b00;">` : ''}
+          </div>
+        </div>
+
+        <button onclick="saveMasterEditAthlete('${athleteId}')" style="background:#10b981;color:white;border:none;border-radius:8px;padding:12px;font-size:0.95rem;font-weight:bold;cursor:pointer;width:100%;margin-top:8px;">
+          💾 Guardar Cambios
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+window.masterEditAthlete = masterEditAthlete;
+
+// ── ELIMINAR JUGADOR DESDE EL PADRÓN MAESTRO ──────────────────────────────────
+async function masterDeleteAthlete(source, athleteId, tournamentId, teamId, playerId, name) {
+  if (!confirm(`¿Eliminar a "${name}" del padrón?\n\nEsta acción no se puede deshacer.`)) return;
+
+  try {
+    if (source === 'standalone') {
+      // Atleta / entrenador del registro independiente
+      if (!athleteId) return alert('ID de atleta no disponible.');
+      await remove(ref(db, `athletes/${athleteId}`));
+      // Actualizar la lista local
+      if (window._masterAllAthletes) {
+        window._masterAllAthletes = window._masterAllAthletes.filter(a => a._athleteId !== athleteId);
+      }
+      if (window._masterAthletesMap) delete window._masterAthletesMap[athleteId];
+    } else {
+      // Jugador de equipo dentro de un torneo
+      if (!tournamentId || !teamId || !playerId) return alert('No se encontró la ruta del jugador.');
+      await remove(ref(db, `tournaments/${tournamentId}/teams/${teamId}/players/${playerId}`));
+      // Actualizar la lista local
+      if (window._masterAllAthletes) {
+        window._masterAllAthletes = window._masterAllAthletes.filter(a => a._playerId !== playerId);
+      }
+      if (window._masterAthletesMap) delete window._masterAthletesMap[playerId];
+    }
+
+    // Re-renderizar la tabla con los datos ya actualizados
+    const searchVal = document.getElementById('masterPadronSearch')?.value || '';
+    const filtered = searchVal
+      ? (window._masterAllAthletes || []).filter(a => {
+          const t = searchVal.toLowerCase();
+          return (a.name || '').toLowerCase().includes(t) ||
+                 (a.curp || '').toLowerCase().includes(t) ||
+                 (a._teamName || '').toLowerCase().includes(t);
+        })
+      : (window._masterAllAthletes || []);
+
+    // Actualizar contador en el título
+    const titleEl = document.querySelector('#master-tab-padron h3');
+    if (titleEl) titleEl.textContent = `📋 Padrón General (${(window._masterAllAthletes || []).length} atletas)`;
+
+    document.getElementById('master-padron-table-container').innerHTML = buildMasterPadronTable(filtered);
+
+  } catch (err) {
+    alert('❌ Error al eliminar: ' + err.message);
+  }
+}
+window.masterDeleteAthlete = masterDeleteAthlete;
+
+function previewMasterEditPhoto(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('meFotoPreview');
+    if (preview) preview.innerHTML = `<img src="${e.target.result}" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #ff6b00;">`;
+  };
+  reader.readAsDataURL(file);
+}
+window.previewMasterEditPhoto = previewMasterEditPhoto;
+
+async function saveMasterEditAthlete(athleteId) {
+  const updatedData = {
+    name:            document.getElementById('meNombre').value.trim(),
+    club:            document.getElementById('meClub').value.trim(),
+    category:        document.getElementById('meCategoria').value,
+    curp:            document.getElementById('meCurp').value.toUpperCase(),
+    birth:           document.getElementById('meNacimiento').value,
+    number:          document.getElementById('meNumero').value,
+    bloodType:       document.getElementById('meSangre').value,
+    responsibleName: document.getElementById('meResponsable').value.trim(),
+    phone:           document.getElementById('meTelefono').value.trim(),
+    email:           document.getElementById('meEmail').value.trim(),
+  };
+
+  const photoFile = document.getElementById('meFoto')?.files?.[0];
+  if (photoFile) {
+    try {
+      updatedData.photo = await resizeAndEncodeImage(photoFile, 400, 0.75);
+    } catch(err) {
+      return alert('❌ Error con la foto: ' + err.message);
+    }
+  }
+
+  update(ref(db, `athletes/${athleteId}`), updatedData).then(() => {
+    alert('✅ Atleta actualizado correctamente.');
+    document.getElementById('masterEditModal')?.remove();
+    renderMasterPadron(); // refrescar la tabla
+  }).catch(err => alert('❌ Error: ' + err.message));
+}
+window.saveMasterEditAthlete = saveMasterEditAthlete;
 
 // TAB 5: GESTIÓN DE ACCESOS
 async function renderMasterAccesos() {

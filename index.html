@@ -73,6 +73,10 @@
   background: #1e293b;
 }
 
+
+  /* Seguridad: elementos solo-admin ocultos hasta que body tenga clase is-admin Y rol confirmado */
+  .role-admin-only { display: none !important; }
+  body.is-admin-confirmed .role-admin-only { display: block !important; }
 </style>
 </head>
 <body>
@@ -770,7 +774,7 @@
   </div>
 </div>
 
-<button id="btn-master-panel" onclick="openMasterPanel()" style="display:none; position:fixed; bottom:24px; right:24px; background:#ff6b00; color:white; border:none; border-radius:50px; padding:14px 20px; font-size:1rem; font-weight:bold; cursor:pointer; box-shadow:0 4px 20px rgba(255,107,0,0.5); z-index:8888;">⚙️ Panel Maestro</button>
+<button id="btn-master-panel" class="role-admin-only" onclick="openMasterPanel()" style="display:none; position:fixed; bottom:24px; right:24px; background:#ff6b00; color:white; border:none; border-radius:50px; padding:14px 20px; font-size:1rem; font-weight:bold; cursor:pointer; box-shadow:0 4px 20px rgba(255,107,0,0.5); z-index:8888;">⚙️ Panel Maestro</button>
 
 </body>
 </html>
