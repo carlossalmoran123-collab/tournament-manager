@@ -24,37 +24,154 @@ body {
   color: var(--text-main);
   min-height: 100vh;
 }
+
+/* ── SPONSOR TICKER BAR ─────────────────────────────────────────────────── */
 .sponsor-footer {
     position: fixed;
     bottom: 0;
     left: 0;
     width: 100%;
-    background: rgba(0, 0, 0, 0.9);
+    background: linear-gradient(to right, #0a0a0a, #111 50%, #0a0a0a);
     border-top: 2px solid #ff6b00;
-    padding: 10px;
-    text-align: center;
-    z-index: 9999;
+    padding: 0;
+    z-index: 9000;
+    overflow: hidden;
+    height: 64px;
+    display: flex;
+    align-items: center;
 }
 
-.sponsor-footer small {
-    color: #ff6b00;
-    display: block;
-    font-size: 0.7rem;
+/* Etiqueta lateral izquierda */
+.sponsor-footer .sponsor-label {
+    flex-shrink: 0;
+    background: #ff6b00;
+    color: #000;
+    font-size: 0.6rem;
+    font-weight: 800;
     text-transform: uppercase;
-    margin-bottom: 5px;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    white-space: nowrap;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    z-index: 2;
 }
 
-#sponsor-display img {
-    height: 45px;
+/* Pista del ticker */
+.sponsor-ticker-wrapper {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+}
+
+/* Fade en los bordes */
+.sponsor-ticker-wrapper::before,
+.sponsor-ticker-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 40px;
+    z-index: 2;
+    pointer-events: none;
+}
+.sponsor-ticker-wrapper::before {
+    left: 0;
+    background: linear-gradient(to right, #0a0a0a, transparent);
+}
+.sponsor-ticker-wrapper::after {
+    right: 0;
+    background: linear-gradient(to left, #0a0a0a, transparent);
+}
+
+/* Track animado */
+.sponsor-ticker-track {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+    height: 100%;
+    animation: sponsorScroll 28s linear infinite;
+    will-change: transform;
+    padding: 0 24px;
+    width: max-content;
+}
+
+.sponsor-ticker-track:hover {
+    animation-play-state: paused;
+}
+
+@keyframes sponsorScroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+/* Tarjeta individual de patrocinador */
+.sponsor-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,107,0,0.15);
+    border-radius: 8px;
+    padding: 6px 14px;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+    max-width: 200px;
+}
+
+.sponsor-card:hover {
+    background: rgba(255,107,0,0.12);
+    border-color: rgba(255,107,0,0.5);
+}
+
+.sponsor-card img {
+    height: 36px;
     width: auto;
-    max-width: 150px;
-    transition: opacity 0.5s ease-in-out;
+    max-width: 120px;
+    object-fit: contain;
+    filter: brightness(1.05);
+}
+
+.sponsor-card .sponsor-name {
+    color: #e2e8f0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90px;
+}
+
+/* Separador decorativo */
+.sponsor-divider {
+    width: 1px;
+    height: 28px;
+    background: rgba(255,107,0,0.3);
+    flex-shrink: 0;
+}
+
+/* Un solo sponsor: centrado sin animación */
+.sponsor-ticker-track.single-sponsor {
+    animation: none;
+    justify-content: center;
+    width: 100%;
+}
+
+@media (max-width: 480px) {
+    .sponsor-footer { height: 56px; }
+    .sponsor-label  { font-size: 0.55rem; padding: 4px 7px; }
+    .sponsor-card   { padding: 5px 10px; }
+    .sponsor-card img { height: 30px; }
+    .sponsor-card .sponsor-name { font-size: 0.65rem; }
 }
 
 /* Para no tapar contenido de la app */
 .app-main-container {
     padding-bottom: 80px; 
 }
+
 /* ==========================================================================
    PANTALLA 1: PANEL SELECTOR CENTRALIZADO
    ========================================================================== */
@@ -86,13 +203,12 @@ body {
 }
 
 .main-logo {
-    max-width: 180px; /* Tamaño ideal para el inicio */
+    max-width: 180px;
     height: auto;
-    filter: drop-shadow(0 0 15px rgba(255, 107, 0, 0.4)); /* Brillo naranja sutil */
+    filter: drop-shadow(0 0 15px rgba(255, 107, 0, 0.4));
     margin-bottom: 10px;
 }
 
-/* Ajuste para que el header no se vea apretado */
 .app-header {
     background-color: var(--bg-card);
     border-bottom: 2px solid var(--accent-orange);

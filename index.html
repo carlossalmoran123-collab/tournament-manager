@@ -13,73 +13,51 @@
   <!-- ✅ NUEVO: librerías para exportar todas las credenciales en un solo PDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-<style>
-
-.master-tab {
-  background: #334155;
-  color: #94a3b8;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-.master-tab.active {
-  background: #ff6b00;
-  color: white;
-}
-.master-tab:hover:not(.active) {
-  background: #475569;
-  color: white;
-}
-.master-stat-card {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 20px;
-  text-align: center;
-}
-.master-stat-number {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #ff6b00;
-}
-.master-stat-label {
-  color: #94a3b8;
-  font-size: 0.85rem;
-  margin-top: 4px;
-}
-.master-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-.master-table th {
-  background: #334155;
-  color: #94a3b8;
-  padding: 10px 12px;
-  text-align: left;
-  font-weight: 600;
-}
-.master-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #1e293b;
-  color: #e2e8f0;
-}
-.master-table tr:hover td {
-  background: #1e293b;
-}
-
-
-  /* Seguridad: elementos solo-admin ocultos hasta que body tenga clase is-admin Y rol confirmado */
-  .role-admin-only { display: none !important; }
-  body.is-admin-confirmed .role-admin-only { display: block !important; }
-</style>
 </head>
 <body>
+
+  <!-- ── BOTONES FLOTANTES ESQUINA SUPERIOR DERECHA ── -->
+  <div style="position:fixed; top:14px; right:16px; z-index:99999; display:flex; gap:8px; align-items:center;">
+
+    <!-- Botón Panel Maestro (solo visible cuando el admin está logueado) -->
+    <button id="btnGoToAdminPrep"
+      style="display:none; background:#ff6b00; color:#000; border:none;
+             font-size:0.75rem; font-weight:800; text-transform:uppercase;
+             letter-spacing:0.05em; padding:7px 14px; border-radius:6px;
+             cursor:pointer; white-space:nowrap; box-shadow:0 2px 10px rgba(255,107,0,0.4);">
+      ⚙ Panel Maestro
+    </button>
+
+    <!-- Botón login (solo visible cuando NO está logueado) -->
+    <div id="floating-admin-btn-wrapper">
+      <button id="floatingAdminToggle"
+        onclick="toggleFloatingLogin()"
+        style="background:rgba(255,107,0,0.12); border:1px solid rgba(255,107,0,0.35);
+               color:#ff6b00; font-size:0.72rem; font-weight:700;
+               letter-spacing:0.06em; text-transform:uppercase;
+               padding:6px 12px; border-radius:6px; cursor:pointer;
+               backdrop-filter:blur(6px);"
+        onmouseover="this.style.background='rgba(255,107,0,0.22)'"
+        onmouseout="this.style.background='rgba(255,107,0,0.12)'"
+      >⚙ Admin</button>
+
+      <!-- Mini panel de login flotante -->
+      <div id="floating-login-panel" style="
+          display:none; position:absolute; top:38px; right:0;
+          background:#171d26; border:1px solid #262f3d;
+          border-radius:10px; padding:18px; width:260px;
+          box-shadow:0 8px 32px rgba(0,0,0,0.6);">
+        <p style="font-size:0.8rem; color:#ff6b00; font-weight:700; text-transform:uppercase; margin-bottom:12px;">Acceso Administrador</p>
+        <input type="email" id="floatLoginEmail" placeholder="Correo" style="margin-bottom:8px; padding:9px; font-size:0.85rem;">
+        <input type="password" id="floatLoginPassword" placeholder="Contraseña" style="margin-bottom:12px; padding:9px; font-size:0.85rem;">
+        <button onclick="handleFloatingLogin()" style="
+            width:100%; background:#ff6b00; color:#000; border:none;
+            border-radius:6px; padding:9px; font-weight:800;
+            font-size:0.85rem; cursor:pointer;">Entrar</button>
+        <p id="floatLoginError" style="color:#ef4444; font-size:0.75rem; margin-top:8px; display:none;"></p>
+      </div>
+    </div>
+  </div>
 
   <!-- PANTALLA INICIAL: SELECCIÓN DE COMPETENCIA -->
   <div id="competition-selector-screen" class="selector-container">
@@ -114,10 +92,10 @@
         </form>
       </div>
 
-      <button id="btnGoToAdminPrep" class="btn-secondary admin-only-block" style="display:none;">⚙️ Ir a Panel de Administración</button>
+      <!-- btnGoToAdminPrep movido a esquina superior derecha -->
 
       <!-- ✅ NUEVO: acceso directo a credenciales, sin necesidad de elegir competencia -->
-      <button id="btnGoToStandaloneAthletes" class="btn-secondary" style="display:none; margin-top:10px;">🪪 Registro y Credenciales de Atletas</button>
+      <button id="btnGoToStandaloneAthletes" class="btn-secondary admin-only-block" style="display:none; margin-top:10px;">🪪 Registro y Credenciales de Atletas</button>
     </div>
   </div>
 
@@ -136,34 +114,27 @@
 
     <main class="app-main-container">
       <div class="admin-form-card">
-        <h3 id="standaloneFormTitle">🏃 Registrar Nuevo Atleta</h3>
-
-        <!-- SELECTOR DE TIPO -->
-        <div style="display:flex; gap:10px; margin-bottom:20px;">
-          <button type="button" id="btnTipoAtleta"
-            onclick="toggleStandaloneTipo('atleta')"
-            style="flex:1; padding:12px; border-radius:8px; border:2px solid #ff6b00; background:#ff6b00; color:#fff; font-weight:bold; cursor:pointer; font-size:0.95rem;">
-            🏃 Atleta
-          </button>
-          <button type="button" id="btnTipoEntrenador"
-            onclick="toggleStandaloneTipo('entrenador')"
-            style="flex:1; padding:12px; border-radius:8px; border:2px solid #334155; background:transparent; color:#94a3b8; font-weight:bold; cursor:pointer; font-size:0.95rem;">
-            👨‍🏫 Entrenador
-          </button>
-        </div>
-
+        <h3>🏃 Registrar Nuevo Atleta</h3>
         <form id="standalonePlayerForm">
-          <!-- Campo oculto para tipo -->
-          <input type="hidden" id="standalonePersonType" value="atleta">
-
-          <!-- DATOS COMUNES -->
           <div class="form-group">
-            <label id="standaloneNameLabel">Nombre Completo:</label>
+            <label>Nombre Completo:</label>
             <input type="text" id="standalonePlayerName" placeholder="Nombre del niño/joven" required>
           </div>
 
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label>Club / Equipo (texto libre):</label>
+              <input type="text" id="standalonePlayerClub" placeholder="Nombre del club" required>
+            </div>
+            <div class="form-group">
+              <label>Categoría:</label>
+              <select id="standalonePlayerCategory" required></select>
+            </div>
+          </div>
+
+          <!-- Foto: botón de subida (JPG/PNG) - IDs únicos para no chocar con el formulario de jugadores por equipo -->
           <div class="form-group" style="margin-bottom:12px;">
-            <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Foto (JPG o PNG)</label>
+            <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Foto del Atleta (JPG o PNG)</label>
             <label for="standalonePlayerPhoto" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
               📤 Subir Foto
               <input type="file" id="standalonePlayerPhoto" accept="image/png, image/jpeg" style="display:none;" onchange="previewStandalonePlayerPhoto(this)">
@@ -174,80 +145,47 @@
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
             <div class="form-group">
               <label>CURP:</label>
-              <input type="text" id="standalonePlayerCurp" maxlength="18" placeholder="18 caracteres" style="text-transform: uppercase;">
+              <input type="text" id="standalonePlayerCurp" maxlength="18" placeholder="18 caracteres" required style="text-transform: uppercase;">
             </div>
             <div class="form-group">
               <label>F. Nacimiento:</label>
-              <input type="date" id="standalonePlayerBirth">
+              <input type="date" id="standalonePlayerBirth" required>
+            </div>
+            <div class="form-group">
+              <label>Número (#):</label>
+              <input type="number" id="standalonePlayerNumber" placeholder="00" required>
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
             <div class="form-group">
-              <label>Teléfono:</label>
-              <input type="tel" id="standalonePlayerRespPhone" placeholder="10 dígitos">
+              <label>Tipo de Sangre:</label>
+              <select id="standalonePlayerBlood">
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+              </select>
             </div>
-            <div class="form-group">
-              <label>Correo:</label>
-              <input type="email" id="standalonePlayerEmail" placeholder="correo@ejemplo.com">
-            </div>
-          </div>
-
-          <!-- CAMPOS SOLO PARA ATLETA -->
-          <div id="standaloneAtletaFields">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-              <div class="form-group">
-                <label>Club / Equipo:</label>
-                <input type="text" id="standalonePlayerClub" placeholder="Nombre del club">
-              </div>
-              <div class="form-group">
-                <label>Categoría:</label>
-                <select id="standalonePlayerCategory"></select>
-              </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-              <div class="form-group">
-                <label>Número (#):</label>
-                <input type="number" id="standalonePlayerNumber" placeholder="00">
-              </div>
-              <div class="form-group">
-                <label>Tipo de Sangre:</label>
-                <select id="standalonePlayerBlood">
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                </select>
-              </div>
-            </div>
-
             <div class="form-group">
               <label>Nombre del Responsable (Padre/Tutor):</label>
-              <input type="text" id="standalonePlayerRespName" placeholder="Nombre completo">
+              <input type="text" id="standalonePlayerRespName" placeholder="Nombre completo" required>
             </div>
           </div>
 
-          <!-- CAMPOS SOLO PARA ENTRENADOR -->
-          <div id="standaloneEntrenadorFields" style="display:none;">
-            <div class="form-group">
-              <label>Club / Equipo que dirige:</label>
-              <input type="text" id="standaloneCoachClub" placeholder="Nombre del club">
-            </div>
-            <div class="form-group">
-              <label>Especialidad / Categoría que entrena:</label>
-              <select id="standaloneCoachCategory"></select>
-            </div>
+          <div class="form-group">
+            <label>Teléfono del Responsable:</label>
+            <input type="tel" id="standalonePlayerRespPhone" placeholder="10 dígitos" required>
           </div>
 
-          <button type="submit" class="btn-primary" id="standaloneSubmitBtn" style="margin-top:10px;">💾 Registrar Atleta y Generar ID</button>
+          <button type="submit" class="btn-primary">💾 Registrar Atleta y Generar ID</button>
         </form>
 
         <div id="standalone-athlete-list" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;"></div>
@@ -327,6 +265,74 @@
     </main>
   </div>
 
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- PANEL MASTER — solo visible para el administrador               -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div id="admin-master-screen" style="display:none; min-height:100vh; background:#0a0f1a;">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-container" style="display:flex; align-items:center; gap:15px; padding:10px 20px;">
+        <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png"
+             alt="Logo" style="height:60px; width:auto;">
+        <div style="flex:1;">
+          <h1 style="margin:0; font-size:1.4rem; color:#fff;">Panel Master</h1>
+          <p style="margin:0; font-size:0.8rem; color:#aaa;">Gestión de todas tus competencias</p>
+        </div>
+        <button onclick="signOutAdmin()"
+          style="background:#334155; color:#fff; border:none; padding:8px 16px;
+                 border-radius:6px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
+          🔒 Cerrar Sesión
+        </button>
+      </div>
+    </header>
+
+    <main style="max-width:900px; margin:0 auto; padding:24px 16px;">
+
+      <!-- Mis Competencias -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h2 style="margin:0; color:#fff; font-size:1.1rem;">📋 Mis Competencias</h2>
+      </div>
+      <div id="master-competitions-list">
+        <p style="color:#aaa; text-align:center; padding:40px;">Cargando...</p>
+      </div>
+
+      <!-- Crear nueva competencia -->
+      <div style="background:#0f172a; border:2px dashed #334155; border-radius:12px;
+                  padding:24px; margin-top:24px;">
+        <h3 style="margin:0 0 16px 0; color:#ff6b00; font-size:1rem;">
+          ➕ Crear Nueva Competencia
+        </h3>
+        <form id="eventForm" style="display:flex; gap:10px; flex-wrap:wrap;">
+          <input type="text" id="eventName" placeholder="Nombre del torneo" required
+            style="flex:2; min-width:200px; padding:10px 14px; border-radius:8px;
+                   border:1px solid #334155; background:#1e2530; color:#fff; font-size:0.9rem;">
+          <input type="text" id="eventLocation" placeholder="Sede principal"
+            style="flex:2; min-width:180px; padding:10px 14px; border-radius:8px;
+                   border:1px solid #334155; background:#1e2530; color:#fff; font-size:0.9rem;">
+          <button type="submit"
+            style="flex:1; min-width:160px; padding:10px 16px; background:#ff6b00; color:#fff;
+                   border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:0.9rem;">
+            🚀 Crear Competencia
+          </button>
+        </form>
+        <p style="color:#aaa; font-size:0.75rem; margin:10px 0 0 0;">
+          Toda competencia nueva nace bloqueada. La publicas cuando esté lista.
+        </p>
+      </div>
+
+      <!-- Acceso a registro de atletas independiente -->
+      <div style="margin-top:16px; text-align:center;">
+        <button id="btnGoToStandaloneAthletes2" onclick="goToStandaloneAthletes()"
+          style="background:#1e2530; color:#aaa; border:1px solid #334155; padding:10px 20px;
+                 border-radius:8px; cursor:pointer; font-size:0.85rem;">
+          🪪 Registro y Credenciales de Atletas (Independiente)
+        </button>
+      </div>
+
+    </main>
+  </div>
+
   <!-- APLICACIÓN PRINCIPAL -->
   <div id="main-app-content" style="display: none;">
 
@@ -337,8 +343,8 @@
       <h1 id="appTournamentTitle" style="margin: 0; font-size: 1.5rem;">Cargando...</h1>
       <p class="tournament-meta" style="margin: 0;">📍 <span id="appTournamentVenue">--</span></p>
     </div>
-    <button id="btnBackToSelector" class="btn-secondary" style="white-space:nowrap;">↩️ Volver</button>
-    <button id="logoutBtn" class="btn-secondary admin-only" style="white-space:nowrap;">🔒 Cerrar Sesión</button>
+    <button id="btnBackToSelector" onclick="backToMasterFromEvent()" class="btn-secondary" style="white-space:nowrap;">↩️ Panel Master</button>
+    <button id="logoutBtn" class="btn-secondary admin-only" style="display:none;">🔒 Cerrar Sesión</button>
   </div>
 </header>
 
@@ -346,9 +352,10 @@
       <ul class="nav-links">
         <li><button class="nav-btn active" data-section="dashboard" onclick="switchSection('dashboard')">🏠 Inicio</button></li>
         <li><button class="nav-btn" data-section="categories" onclick="switchSection('categories')">🛡️ Categorías</button></li>
-        <li><button class="nav-btn" data-section="roles" onclick="switchSection('roles')">📅 Partidos</button></li>
+        <li><button class="nav-btn" data-section="roles" onclick="switchSection('roles')">📅 Rol de Juegos</button></li>
         <li><button class="nav-btn" data-section="classification" onclick="switchSection('classification')">📊 Clasificación</button></li>
-        <li><button class="nav-btn admin-only role-admin-only" data-section="admin" onclick="switchSection('admin')" style="display:none;">⚙️ Admin</button></li>
+        <li><button class="nav-btn admin-only role-admin-only" data-section="admin" onclick="switchSection('admin')" style="display:none;">⚙️ Panel Admin</button></li>
+        <li><button class="nav-btn admin-only role-admin-only" data-section="playerRegistry" onclick="switchSection('playerRegistry')" style="display:none;">📋 Padrón General</button></li>
       </ul>
     </nav>
 
@@ -420,8 +427,124 @@
       <section id="admin" class="section">
         <h2 class="section-title">🛠️ Panel de Control Técnico</h2>
 
-        <!-- ✅ FIX: un solo div con display:none por defecto, el JS lo muestra al autenticar -->
         <div id="admin-dashboard-panels" class="admin-panels-grid" style="display:none;">
+
+          <!-- ✅ NUEVO: MIS COMPETENCIAS (control de visibilidad) -->
+          <div class="admin-form-card" style="grid-column: 1 / -1; border: 2px solid #ff6b00;">
+            <h3>📋 Mis Competencias</h3>
+            <p style="font-size:0.8rem; color:#aaa; margin-top:-8px; margin-bottom:16px;">
+              Decide qué competencias son visibles al público. Las bloqueadas solo las ves tú como administrador.
+            </p>
+            <div id="competitions-manager-list">
+              <p style="color:#aaa; font-size:0.85rem; font-style:italic;">Cargando competencias...</p>
+            </div>
+          </div>
+
+          <!-- PATROCINADORES -->
+          <div class="admin-form-card">
+            <h3>🤝 Gestión de Patrocinadores</h3>
+            <form id="sponsorForm">
+              <div class="form-group">
+                <label>Nombre del Patrocinador:</label>
+                <input type="text" id="sponsorName" required>
+              </div>
+
+              <div class="form-group" style="margin-bottom:12px;">
+                <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🏷️ Logo del Patrocinador (JPG o PNG)</label>
+                <label for="sponsorLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
+                  📤 Subir Logo
+                  <input type="file" id="sponsorLogo" accept="image/png, image/jpeg" style="display:none;" onchange="previewSponsorLogo(this)">
+                </label>
+                <span id="sponsorLogoFileName" style="margin-left:10px; font-size:0.8rem; color:#aaa;">Ningún archivo seleccionado</span>
+                <div id="sponsorLogoPreviewBox" style="margin-top:10px; display:none;">
+                  <img id="sponsorLogoPreview" src="" style="width:80px; height:80px; border-radius:8px; object-fit:cover; border:2px solid #ff6b00; background:#fff;">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Link Web/Facebook:</label>
+                <input type="url" id="sponsorLink" placeholder="https://...">
+              </div>
+              <button type="submit" class="btn-primary">Añadir Patrocinador</button>
+            </form>
+            <div id="admin-sponsor-list" style="margin-top:10px; font-size:0.8rem;"></div>
+          </div>
+
+          <!-- REGISTRO DE ATLETAS -->
+          <div class="admin-form-card">
+            <h3>🏃 Registro Oficial de Atletas</h3>
+            <form id="playerForm">
+              <div class="form-group">
+                <label>Club / Equipo:</label>
+                <select id="selectTeamForPlayer" required></select>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                  <label>Nombre Completo:</label>
+                  <input type="text" id="playerName" placeholder="Nombre del niño/joven" required>
+                </div>
+
+                <div class="form-group" style="margin-bottom:12px;">
+                  <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Foto del Jugador (JPG o PNG)</label>
+                  <label for="playerPhoto" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
+                    📤 Subir Foto
+                    <input type="file" id="playerPhoto" accept="image/png, image/jpeg" style="display:none;" onchange="previewPlayerPhoto(this)">
+                  </label>
+                  <span id="playerPhotoFileName" style="margin-left:10px; font-size:0.8rem; color:#aaa;">Ningún archivo seleccionado</span>
+                  <div id="playerPhotoPreviewBox" style="margin-top:10px; display:none;">
+                    <img id="playerPhotoPreview" src="" style="width:80px; height:80px; border-radius:8px; object-fit:cover; border:2px solid #ff6b00;">
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                  <label>CURP:</label>
+                  <input type="text" id="playerCurp" maxlength="18" placeholder="18 caracteres" required style="text-transform: uppercase;">
+                </div>
+                <div class="form-group">
+                  <label>F. Nacimiento:</label>
+                  <input type="date" id="playerBirth" required>
+                </div>
+                <div class="form-group">
+                  <label>Número (#):</label>
+                  <input type="number" id="playerNumber" placeholder="00" required>
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
+                <div class="form-group">
+                  <label>Tipo de Sangre:</label>
+                  <select id="playerBlood">
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Nombre del Responsable (Padre/Tutor):</label>
+                  <input type="text" id="playerRespName" placeholder="Nombre completo" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Teléfono del Responsable:</label>
+                <input type="tel" id="playerRespPhone" placeholder="10 dígitos" required>
+              </div>
+
+              <button type="submit" class="btn-primary">💾 Registrar Atleta y Generar ID</button>
+            </form>
+
+            <div id="admin-player-list" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
+              <p style="color: #888; font-style: italic;">Selecciona un equipo para ver su roster.</p>
+            </div>
+          </div>
 
           <!-- REGISTRAR EQUIPO -->
           <div class="admin-form-card">
@@ -432,7 +555,6 @@
                 <input type="text" id="regTeamName" required>
               </div>
 
-              <!-- ✅ Logo del equipo: botón de subida (JPG/PNG), opcional -->
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🛡️ Logo del Equipo (JPG o PNG, opcional)</label>
                 <label for="regTeamLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -472,7 +594,7 @@
   </form>
 </div>
 
-          <!-- Nueva Tarjeta: EDITAR / ELIMINAR SEDE -->
+          <!-- Editar / Eliminar Sede -->
 <div class="admin-form-card">
   <h3>✏️ / 🗑️ Editar o Eliminar Sede (Cancha)</h3>
   <form id="editVenueForm">
@@ -514,7 +636,6 @@
                 <input type="text" id="editTeamName" required>
               </div>
 
-              <!-- ✅ Logo del equipo: botón de subida, deja vacío para mantener el actual -->
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🛡️ Logo del Equipo (deja vacío para mantener el actual)</label>
                 <label for="editTeamLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -617,10 +738,55 @@
             </form>
           </div>
 
+          <!-- REGISTRAR MARCADOR -->
+          <div class="admin-form-card">
+            <h3>📝 Registrar Resultado</h3>
+            <form id="scoreForm">
+              <div class="form-group">
+                <label>Seleccionar partido:</label>
+                <select id="scoreSelectMatch" required></select>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
+                <input type="number" id="scoreLocal" placeholder="Local" required>
+                <input type="number" id="scoreVisitor" placeholder="Visita" required>
+              </div>
+              <button type="submit" class="btn-primary">💾 Guardar Score</button>
+            </form>
+          </div>
+
+          <!-- Crear competencia se hace desde el Panel Master -->
+
+          <!-- GESTIÓN DE ENTRENADORES -->
+          <div class="admin-form-card" style="grid-column: 1 / -1; border: 2px solid #10b981;">
+            <h3>👨‍🏫 Gestión de Entrenadores</h3>
+            <p style="font-size:0.8rem; color:#aaa; margin-top:-5px;">
+              Crea cuentas para tus entrenadores. Ellos solo podrán entrar a registrar/editar/borrar
+              SUS propios atletas — nunca verán ni podrán tocar torneos, sedes, equipos, partidos o marcadores.
+            </p>
+            <form id="coachForm">
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                  <label>Nombre del Entrenador:</label>
+                  <input type="text" id="coachName" placeholder="Ej: Coach Juan" required>
+                </div>
+                <div class="form-group">
+                  <label>Correo de Acceso:</label>
+                  <input type="email" id="coachEmail" placeholder="coach@correo.com" required>
+                </div>
+                <div class="form-group">
+                  <label>Contraseña:</label>
+                  <input type="password" id="coachPassword" placeholder="Mínimo 6 caracteres" minlength="6" required>
+                </div>
+              </div>
+              <button type="submit" class="btn-primary" style="background:#10b981;">➕ Crear Cuenta de Entrenador</button>
+            </form>
+            <div id="admin-coach-list" style="margin-top: 20px;"></div>
+          </div>
+
         </div><!-- fin admin-dashboard-panels -->
       </section>
 
-      <!-- ✅ NUEVO: Editor unificado — admin puede editar CUALQUIER jugador (equipo o independiente) -->
+      <!-- Editor unificado de jugadores -->
       <div id="editUnifiedPlayerCard" class="admin-form-card" style="display:none; border: 2px solid #ff6b00; margin-top:20px;">
         <h3>✏️ Editar Jugador</h3>
 
@@ -704,77 +870,12 @@
 
   <script type="module" src="script.js"></script>
   <div id="sponsor-banner" class="sponsor-footer">
-  <small>Nuestros Patrocinadores:</small>
-  <div id="sponsor-display">
-    <!-- Aquí aparecerán los logos rotando -->
-    <p>Cargando patrocinadores...</p>
-  </div>
-</div>
-
-
-<!-- PANEL MAESTRO ADMIN -->
-<div id="admin-master-panel" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0f172a; z-index:9999; overflow-y:auto;">
-  <!-- Header con logo y botón cerrar -->
-  <div style="background:#1e293b; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #ff6b00; position:sticky; top:0; z-index:10;">
-    <div style="display:flex; align-items:center; gap:12px;">
-      <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" style="height:40px;">
-      <div>
-        <div style="color:#ff6b00; font-weight:bold; font-size:1.1rem;">PANEL MAESTRO</div>
-        <div style="color:#94a3b8; font-size:0.75rem;">Control Total del Sistema</div>
-      </div>
-    </div>
-    <button onclick="closeMasterPanel()" style="background:#334155; color:white; border:none; border-radius:8px; padding:8px 16px; cursor:pointer; font-size:0.9rem;">✕ Cerrar</button>
-  </div>
-  
-  <!-- Tabs de navegación -->
-  <div id="master-panel-tabs" style="display:flex; gap:8px; padding:16px 24px; background:#1e293b; border-bottom:1px solid #334155; flex-wrap:wrap;">
-    <button class="master-tab active" onclick="showMasterTab('resumen')" id="tab-resumen">📊 Resumen Global</button>
-    <button class="master-tab" onclick="showMasterTab('competencias')" id="tab-competencias">🏆 Competencias</button>
-    <button class="master-tab" onclick="showMasterTab('entrenadores')" id="tab-entrenadores">👨‍🏫 Entrenadores</button>
-    <button class="master-tab" onclick="showMasterTab('padron')" id="tab-padron">📋 Padrón General</button>
-    <button class="master-tab" onclick="showMasterTab('accesos')" id="tab-accesos">🔑 Accesos</button>
-    <button class="master-tab" onclick="showMasterTab('patrocinadores')" id="tab-patrocinadores">🤝 Patrocinadores</button>
-  </div>
-
-  <!-- Contenido de cada tab -->
-  <div style="padding:24px;">
-    <div id="master-tab-resumen" class="master-tab-content"></div>
-    <div id="master-tab-competencias" class="master-tab-content" style="display:none"></div>
-    <div id="master-tab-entrenadores" class="master-tab-content" style="display:none"></div>
-    <div id="master-tab-padron" class="master-tab-content" style="display:none"></div>
-    <div id="master-tab-accesos" class="master-tab-content" style="display:none"></div>
-    <div id="master-tab-patrocinadores" class="master-tab-content" style="display:none">
-      <div style="background:#1e293b; border-radius:12px; padding:24px; max-width:600px;">
-        <h3 style="color:#ff6b00; margin-top:0;">🤝 Gestión de Patrocinadores</h3>
-        <form id="sponsorForm">
-          <div class="form-group">
-            <label style="color:#94a3b8; font-size:0.85rem;">Nombre del Patrocinador:</label>
-            <input type="text" id="sponsorName" required style="width:100%; padding:8px 12px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#fff; box-sizing:border-box;">
-          </div>
-          <div class="form-group" style="margin-top:12px;">
-            <label style="display:block; font-size:0.8rem; color:#94a3b8; margin-bottom:6px;">🏷️ Logo (JPG o PNG)</label>
-            <label for="sponsorLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
-              📤 Subir Logo
-              <input type="file" id="sponsorLogo" accept="image/png, image/jpeg" style="display:none;" onchange="previewSponsorLogo(this)">
-            </label>
-            <span id="sponsorLogoFileName" style="margin-left:10px; font-size:0.8rem; color:#aaa;">Ningún archivo seleccionado</span>
-            <div id="sponsorLogoPreviewBox" style="margin-top:10px; display:none;">
-              <img id="sponsorLogoPreview" src="" style="width:80px; height:80px; border-radius:8px; object-fit:cover; border:2px solid #ff6b00; background:#fff;">
-            </div>
-          </div>
-          <div class="form-group" style="margin-top:12px;">
-            <label style="color:#94a3b8; font-size:0.85rem;">Link Web/Facebook:</label>
-            <input type="url" id="sponsorLink" placeholder="https://..." style="width:100%; padding:8px 12px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#fff; box-sizing:border-box;">
-          </div>
-          <button type="submit" style="margin-top:16px; background:#ff6b00; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">➕ Añadir Patrocinador</button>
-        </form>
-        <div id="admin-sponsor-list" style="margin-top:20px; border-top:1px solid #334155; padding-top:15px;"></div>
+    <span class="sponsor-label">Patrocinadores</span>
+    <div class="sponsor-ticker-wrapper">
+      <div id="sponsor-display" class="sponsor-ticker-track">
+        <!-- los logos se inyectan aquí desde JS -->
       </div>
     </div>
   </div>
-</div>
-
-<button id="btn-master-panel" class="role-admin-only" onclick="openMasterPanel()" style="display:none; position:fixed; bottom:24px; right:24px; background:#ff6b00; color:white; border:none; border-radius:50px; padding:14px 20px; font-size:1rem; font-weight:bold; cursor:pointer; box-shadow:0 4px 20px rgba(255,107,0,0.5); z-index:8888;">⚙️ Panel Maestro</button>
-
 </body>
 </html>

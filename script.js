@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('btnDeleteMatch')?.addEventListener('click', handleDeleteMatchButton);
   document.getElementById('btnEnterApp')?.addEventListener('click', loadSelectedTournamentContext);
   document.getElementById('sponsorForm')?.addEventListener('submit', handleSponsorSubmit);
-  document.getElementById('btnGoToAdminPrep')?.addEventListener('click', () => switchSection('admin', true));
+  document.getElementById('btnGoToAdminPrep')?.addEventListener('click', openMasterPanel);
   document.getElementById('playerForm')?.addEventListener('submit', handlePlayerSubmit);
   document.getElementById('selectTeamForPlayer')?.addEventListener('change', (e) => renderAdminPlayerList(e.target.value));
   document.getElementById('btnBackToSelector')?.addEventListener('click', () => {
@@ -156,10 +156,10 @@ function attachTournamentRealtimeListeners(tournamentId) {
     renderPlayerRegistry();
   });
 
-  onValue(ref(db, `tournaments/${tournamentId}/sponsors`), (snap) => {
+  // Patrocinadores globales — se leen de /sponsors (ruta global)
+  onValue(ref(db, 'sponsors'), (snap) => {
     const data = snap.val();
     startSponsorRotation(data);
-    renderAdminSponsorList(data);
   });
 }
 
@@ -219,12 +219,14 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
     applyRoleBasedNavVisibility();
+    syncFloatingAdminBtn(currentUserRole);
     initGlobalAthletesObserver(); // inicializar AHORA que ya sabemos el rol
   } else {
     currentUserRole = 'public';
     currentUserUid  = null;
     currentUserName = '';
     document.body.classList.remove('is-admin');
+    syncFloatingAdminBtn('public');
     if (document.getElementById('admin-login-box'))    document.getElementById('admin-login-box').style.display = 'flex';
     if (document.getElementById('btnGoToAdminPrep'))   document.getElementById('btnGoToAdminPrep').style.display = 'none';
     if (document.getElementById('btnGoToStandaloneAthletes')) document.getElementById('btnGoToStandaloneAthletes').style.display = 'none';
@@ -239,6 +241,41 @@ onAuthStateChanged(auth, async (user) => {
     renderMatchesByVenue();
   }
 });
+
+// ── BOTÓN FLOTANTE DE ADMIN ─────────────────────────────────────────────────
+function toggleFloatingLogin() {
+  const panel = document.getElementById('floating-login-panel');
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+window.toggleFloatingLogin = toggleFloatingLogin;
+
+async function handleFloatingLogin() {
+  const emailVal = document.getElementById('floatLoginEmail')?.value.trim();
+  const passVal  = document.getElementById('floatLoginPassword')?.value;
+  const errEl    = document.getElementById('floatLoginError');
+  if (!emailVal || !passVal) return;
+  try {
+    await signInWithEmailAndPassword(auth, emailVal, passVal);
+    // El onAuthStateChanged se encarga del resto
+    const panel = document.getElementById('floating-login-panel');
+    if (panel) panel.style.display = 'none';
+  } catch (err) {
+    if (errEl) {
+      errEl.style.display = 'block';
+      errEl.textContent = 'Credenciales incorrectas';
+    }
+  }
+}
+window.handleFloatingLogin = handleFloatingLogin;
+
+// Ocultar el botón flotante cuando el usuario ya está logueado
+function syncFloatingAdminBtn(role) {
+  const wrapper = document.getElementById('floating-admin-btn-wrapper');
+  if (!wrapper) return;
+  // Si está logueado ocultar el botón (ya tiene acceso al panel)
+  wrapper.style.display = (role === 'public') ? 'block' : 'none';
+}
 
 async function handleLoginSubmit(e) {
   e.preventDefault();
@@ -1877,6 +1914,8 @@ function handleEventSubmit(e) {
   }).then(() => {
     alert("¡Competencia creada! Está BLOQUEADA por defecto.\nPublícala desde 'Mis Competencias' cuando esté lista.");
     document.getElementById('eventForm').reset();
+    // Refrescar la lista en el Panel Master
+    if (typeof renderMasterScreenCompetencias === 'function') renderMasterScreenCompetencias();
   });
 }
 
@@ -1952,33 +1991,40 @@ async function handleSponsorSubmit(e) {
 
 function startSponsorRotation(sponsorsData) {
   activeSponsors = Object.entries(sponsorsData || {}).map(([id, s]) => ({ ...s, id }));
-  if (sponsorInterval) clearInterval(sponsorInterval);
+  if (sponsorInterval) clearInterval(sponsorInterval); // ya no se usa pero se limpia por si acaso
 
-  const display = document.getElementById('sponsor-display');
-  if (!display) return;
+  const track = document.getElementById('sponsor-display');
+  if (!track) return;
 
   if (activeSponsors.length === 0) {
-    display.innerHTML = "<p style='color:#555;'>Espacio disponible para publicidad</p>";
+    track.innerHTML = '';
+    track.classList.add('single-sponsor');
+    track.style.animation = 'none';
     return;
   }
 
-  currentSponsorIndex = 0;
+  // Construir las tarjetas
+  const buildCard = (s) => `
+    <a class="sponsor-card" href="${s.link || '#'}" target="_blank" rel="noopener">
+      <img src="${s.logo}" alt="${s.name}" loading="lazy">
+      <span class="sponsor-name">${s.name || ''}</span>
+    </a>`;
 
-  const updateDisplay = () => {
-    const s = activeSponsors[currentSponsorIndex];
-    display.style.opacity = '0';
-    setTimeout(() => {
-      display.innerHTML = `
-        <a href="${s.link || '#'}" target="_blank">
-          <img src="${s.logo}" alt="${s.name}" title="${s.name}" style="max-height:80px; max-width:200px; object-fit:contain;">
-        </a>`;
-      display.style.opacity = '1';
-    }, 500);
-    currentSponsorIndex = (currentSponsorIndex + 1) % activeSponsors.length;
-  };
+  if (activeSponsors.length === 1) {
+    // Solo 1 patrocinador: centrado, sin animación
+    track.classList.add('single-sponsor');
+    track.innerHTML = buildCard(activeSponsors[0]);
+  } else {
+    // Varios: duplicar para loop infinito sin salto
+    track.classList.remove('single-sponsor');
+    const cardsHTML = activeSponsors.map(buildCard).join('<div class="sponsor-divider"></div>');
+    // Duplicar el contenido para que el scroll sea seamless
+    track.innerHTML = cardsHTML + '<div class="sponsor-divider"></div>' + cardsHTML;
 
-  updateDisplay();
-  sponsorInterval = setInterval(updateDisplay, 5000);
+    // Ajustar velocidad según cantidad de sponsors (más sponsors = más lento)
+    const duration = Math.max(18, activeSponsors.length * 6);
+    track.style.animationDuration = duration + 's';
+  }
 }
 
 // ============================================
@@ -3409,15 +3455,143 @@ window.printStandaloneAthleteID = printStandaloneAthleteID;
 
 function openMasterPanel() {
   if (currentUserRole !== 'admin') return;
-  document.getElementById('admin-master-panel').style.display = 'block';
-  document.body.style.overflow = 'hidden';
+
+  // Asegurarse de que el panel maestro con tabs exista
+  let panel = document.getElementById('admin-master-panel');
+
+  if (!panel) {
+    // Crear el panel dinámicamente si no existe en el HTML
+    panel = document.createElement('div');
+    panel.id = 'admin-master-panel';
+    panel.style.cssText = `
+      position:fixed; inset:0; z-index:99998;
+      background:#0a0f1a; overflow-y:auto; padding:0;
+    `;
+    panel.innerHTML = `
+      <div style="max-width:1000px; margin:0 auto; padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" style="height:50px; width:auto;">
+            <div>
+              <h1 style="margin:0; color:#fff; font-size:1.3rem;">⚙️ Panel Maestro</h1>
+              <p style="margin:0; color:#64748b; font-size:0.8rem;">Gestión centralizada del sistema</p>
+            </div>
+          </div>
+          <button onclick="closeMasterPanel()" style="background:#334155; color:#fff; border:none; border-radius:8px; padding:9px 18px; cursor:pointer; font-size:0.9rem;">✕ Cerrar Panel</button>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:24px; border-bottom:1px solid #1e293b; padding-bottom:12px;">
+          <button id="tab-resumen"      class="master-tab active" onclick="showMasterTab('resumen')"      style="padding:8px 16px; border-radius:8px 8px 0 0; border:none; cursor:pointer; font-size:0.85rem; font-weight:600; background:#ff6b00; color:#fff;">📊 Resumen</button>
+          <button id="tab-competencias" class="master-tab"        onclick="showMasterTab('competencias')" style="padding:8px 16px; border-radius:8px 8px 0 0; border:none; cursor:pointer; font-size:0.85rem; font-weight:600; background:#1e293b; color:#94a3b8;">🏆 Competencias</button>
+          <button id="tab-entrenadores" class="master-tab"        onclick="showMasterTab('entrenadores')" style="padding:8px 16px; border-radius:8px 8px 0 0; border:none; cursor:pointer; font-size:0.85rem; font-weight:600; background:#1e293b; color:#94a3b8;">👨‍🏫 Entrenadores</button>
+          <button id="tab-padron"       class="master-tab"        onclick="showMasterTab('padron')"       style="padding:8px 16px; border-radius:8px 8px 0 0; border:none; cursor:pointer; font-size:0.85rem; font-weight:600; background:#1e293b; color:#94a3b8;">📋 Padrón General</button>
+          <button id="tab-accesos"      class="master-tab"        onclick="showMasterTab('accesos')"      style="padding:8px 16px; border-radius:8px 8px 0 0; border:none; cursor:pointer; font-size:0.85rem; font-weight:600; background:#1e293b; color:#94a3b8;">🔑 Accesos</button>
+          <button id="tab-patrocinadores" class="master-tab"      onclick="showMasterTab('patrocinadores')" style="padding:8px 16px; border-radius:8px 8px 0 0; border:none; cursor:pointer; font-size:0.85rem; font-weight:600; background:#1e293b; color:#94a3b8;">🤝 Patrocinadores</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div id="master-tab-resumen"      class="master-tab-content" style="display:block;"><p style="color:#94a3b8;">Cargando...</p></div>
+        <div id="master-tab-competencias" class="master-tab-content" style="display:none;"><p style="color:#94a3b8;">Cargando...</p></div>
+        <div id="master-tab-entrenadores" class="master-tab-content" style="display:none;"><p style="color:#94a3b8;">Cargando...</p></div>
+        <div id="master-tab-padron"       class="master-tab-content" style="display:none;"><p style="color:#94a3b8;">Cargando...</p></div>
+        <div id="master-tab-accesos"      class="master-tab-content" style="display:none;"><p style="color:#94a3b8;">Cargando...</p></div>
+        <div id="master-tab-patrocinadores" class="master-tab-content" style="display:none;"><p style="color:#94a3b8;">Cargando...</p></div>
+      </div>
+
+      <style>
+        .master-tab.active { background:#ff6b00 !important; color:#fff !important; }
+        .master-tab:not(.active) { background:#1e293b !important; color:#94a3b8 !important; }
+        .master-tab:hover:not(.active) { background:#334155 !important; color:#e2e8f0 !important; }
+        .master-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+        .master-table th { background:#1e293b; color:#94a3b8; padding:10px 12px; text-align:left; border-bottom:1px solid #334155; }
+        .master-table td { padding:10px 12px; border-bottom:1px solid #1e293b; color:#e2e8f0; vertical-align:middle; }
+        .master-table tr:hover td { background:#1e293b44; }
+      </style>
+    `;
+    document.body.appendChild(panel);
+  }
+
+  // Ocultar otras pantallas
+  ['competition-selector-screen','athletes-standalone-screen','main-app-content','admin-master-screen'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  panel.style.display = 'block';
+  document.body.style.overflow = 'auto';
   renderMasterResumen();
 }
 
 function closeMasterPanel() {
-  document.getElementById('admin-master-panel').style.display = 'none';
-  document.body.style.overflow = '';
+  const oldPanel = document.getElementById('admin-master-panel');
+  const newScreen = document.getElementById('admin-master-screen');
+  if (oldPanel) { oldPanel.style.display = 'none'; document.body.style.overflow = ''; }
+  if (newScreen) newScreen.style.display = 'none';
+  // Volver a la pantalla selector
+  const sel = document.getElementById('competition-selector-screen');
+  if (sel) sel.style.display = 'flex';
 }
+
+// Carga competencias en el listado de admin-master-screen
+async function renderMasterScreenCompetencias() {
+  const container = document.getElementById('master-competitions-list');
+  if (!container) return renderMasterResumen(); // fallback al panel viejo
+  container.innerHTML = '<p style="color:#aaa; text-align:center; padding:20px;">Cargando...</p>';
+
+  const snap = await get(ref(db, 'tournaments'));
+  const tournaments = snap.val() || {};
+  const entries = Object.entries(tournaments);
+
+  if (entries.length === 0) {
+    container.innerHTML = '<p style="color:#aaa; text-align:center; padding:40px;">No hay competencias registradas aún.</p>';
+    return;
+  }
+
+  container.innerHTML = entries.map(([tid, t]) => `
+    <div style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:18px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div>
+        <p style="margin:0; font-size:1rem; font-weight:700; color:#fff;">${t.name || '—'}</p>
+        <p style="margin:4px 0 0 0; font-size:0.78rem; color:#64748b;">ID: ${tid}</p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span style="background:${t.isPublic ? '#10b981' : '#ef4444'}; color:white; padding:3px 12px; border-radius:20px; font-size:0.75rem; font-weight:bold;">
+          ${t.isPublic ? '🌐 Público' : '🔒 Privado'}
+        </span>
+        <button onclick="masterToggleTournament('${tid}', ${!!t.isPublic})"
+          style="background:#334155; color:white; border:none; border-radius:6px; padding:5px 12px; cursor:pointer; font-size:0.8rem;">
+          ${t.isPublic ? 'Bloquear' : 'Publicar'}
+        </button>
+        <button onclick="enterTournamentFromMaster('${tid}')"
+          style="background:#ff6b00; color:white; border:none; border-radius:8px; padding:6px 14px; cursor:pointer; font-size:0.85rem; font-weight:bold;">
+          ▶ Entrar
+        </button>
+        <button onclick="masterDeleteTournamentConfirm('${tid}', '${(t.name||'').replace(/'/g,"\'")}') "
+          style="background:#ef4444; color:white; border:none; border-radius:6px; padding:5px 12px; cursor:pointer; font-size:0.8rem;">
+          🗑️
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+window.renderMasterScreenCompetencias = renderMasterScreenCompetencias;
+
+function enterTournamentFromMaster(tid) {
+  const newScreen = document.getElementById('admin-master-screen');
+  if (newScreen) newScreen.style.display = 'none';
+  currentTournamentId = tid;
+  attachTournamentRealtimeListeners(tid);
+  document.getElementById('main-app-content').style.display = 'block';
+  switchSection('dashboard');
+}
+window.enterTournamentFromMaster = enterTournamentFromMaster;
+
+function backToMasterFromEvent() {
+  document.getElementById('main-app-content').style.display = 'none';
+  openMasterPanel();
+}
+window.backToMasterFromEvent = backToMasterFromEvent;
 
 function showMasterTab(tab) {
   document.querySelectorAll('.master-tab-content').forEach(el => el.style.display = 'none');
@@ -3573,6 +3747,13 @@ function masterDeleteTournament(id) {
   remove(ref(db, `tournaments/${id}`))
     .then(() => renderMasterCompetencias());
 }
+
+function masterDeleteTournamentConfirm(tid, name) {
+  if (!confirm(`¿Eliminar la competencia "${name}"? Esta acción no se puede deshacer.`)) return;
+  remove(ref(db, `tournaments/${tid}`))
+    .then(() => { renderMasterScreenCompetencias(); renderMasterCompetencias(); });
+}
+window.masterDeleteTournamentConfirm = masterDeleteTournamentConfirm;
 
 function masterCreateTournament() {
   const name = prompt('Nombre de la nueva competencia:');
@@ -4059,11 +4240,185 @@ window.openMasterPanel = openMasterPanel;
 window.closeMasterPanel = closeMasterPanel;
 // TAB: PATROCINADORES
 async function renderMasterPatrocinadores() {
-  // El sponsorForm ya está en el HTML — solo necesitamos cargar la lista actual
-  const sponsorsSnap = await get(ref(db, `tournaments/${currentTournamentId}/sponsors`));
-  renderAdminSponsorList(sponsorsSnap.val());
+  const container = document.getElementById('master-tab-patrocinadores');
+  if (!container) return;
+  container.innerHTML = '<p style="color:#94a3b8; text-align:center; padding:20px;">Cargando...</p>';
+
+  const snap = await get(ref(db, 'sponsors'));
+  const sponsors = snap.val() || {};
+  const entries = Object.entries(sponsors);
+
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h3 style="color:#fff; font-size:1rem; margin:0 0 4px 0;">🤝 Patrocinadores Globales</h3>
+        <p style="color:#64748b; font-size:0.8rem; margin:0;">${entries.length} patrocinador${entries.length !== 1 ? 'es' : ''} registrado${entries.length !== 1 ? 's' : ''}</p>
+      </div>
+      <button onclick="openMasterSponsorForm()"
+        style="background:#ff6b00; color:#fff; border:none; border-radius:8px; padding:9px 18px; cursor:pointer; font-size:0.88rem; font-weight:600;">
+        ➕ Agregar Patrocinador
+      </button>
+    </div>
+
+    <!-- Formulario (oculto por defecto) -->
+    <div id="master-sponsor-form-box" style="display:none; background:#0f172a; border:1px solid #334155; border-radius:12px; padding:20px; margin-bottom:24px;">
+      <h4 id="master-sponsor-form-title" style="color:#fff; margin:0 0 16px 0; font-size:0.95rem;">➕ Nuevo Patrocinador</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div>
+          <label style="color:#94a3b8; font-size:0.8rem; display:block; margin-bottom:4px;">Nombre *</label>
+          <input id="ms-sponsor-name" placeholder="Nombre del patrocinador"
+            style="width:100%; padding:9px 12px; background:#1e293b; border:1px solid #334155; border-radius:8px; color:#fff; font-size:0.88rem; box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="color:#94a3b8; font-size:0.8rem; display:block; margin-bottom:4px;">Link (opcional)</label>
+          <input id="ms-sponsor-link" placeholder="https://..."
+            style="width:100%; padding:9px 12px; background:#1e293b; border:1px solid #334155; border-radius:8px; color:#fff; font-size:0.88rem; box-sizing:border-box;">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="color:#94a3b8; font-size:0.8rem; display:block; margin-bottom:4px;">Logo *</label>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <label for="ms-sponsor-logo" style="background:#1e293b; border:1px dashed #334155; border-radius:8px; padding:10px 16px; cursor:pointer; color:#94a3b8; font-size:0.85rem; white-space:nowrap;">📁 Seleccionar imagen</label>
+            <input id="ms-sponsor-logo" type="file" accept="image/*" style="display:none;" onchange="previewMasterSponsorLogo(this)">
+            <span id="ms-sponsor-logo-name" style="color:#64748b; font-size:0.8rem;">Ningún archivo</span>
+          </div>
+          <div id="ms-sponsor-logo-preview" style="margin-top:10px; display:none;">
+            <img id="ms-sponsor-logo-img" style="max-height:70px; border-radius:6px; background:#1e293b; padding:4px;">
+          </div>
+        </div>
+      </div>
+      <input id="ms-sponsor-edit-id" type="hidden" value="">
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button onclick="saveMasterSponsor()"
+          style="background:#ff6b00; color:#fff; border:none; border-radius:8px; padding:9px 20px; cursor:pointer; font-size:0.88rem; font-weight:600;">💾 Guardar</button>
+        <button onclick="closeMasterSponsorForm()"
+          style="background:#334155; color:#fff; border:none; border-radius:8px; padding:9px 16px; cursor:pointer; font-size:0.88rem;">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Lista de patrocinadores -->
+    <div id="master-sponsor-list">
+      ${entries.length === 0
+        ? `<p style="color:#64748b; text-align:center; padding:40px;">Aún no hay patrocinadores. Presiona "Agregar Patrocinador" para comenzar.</p>`
+        : `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px;">
+            ${entries.map(([id, s]) => `
+              <div style="background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:16px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;">
+                ${s.logo
+                  ? `<img src="${s.logo}" alt="${s.name}" style="max-height:65px; max-width:130px; object-fit:contain; border-radius:6px; background:#1e293b; padding:4px;">`
+                  : `<div style="width:100px; height:65px; background:#1e293b; border-radius:6px; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:0.75rem;">Sin logo</div>`}
+                <p style="margin:0; color:#e2e8f0; font-size:0.9rem; font-weight:600;">${s.name || '—'}</p>
+                ${s.link ? `<a href="${s.link}" target="_blank" rel="noopener" style="color:#ff6b00; font-size:0.72rem; word-break:break-all; max-width:100%;">${s.link}</a>` : '<p style="color:#64748b; font-size:0.75rem; margin:0;">Sin link</p>'}
+                <div style="display:flex; gap:8px; width:100%; margin-top:4px;">
+                  <button onclick="masterEditSponsor('${id}')"
+                    style="flex:1; background:#1e3a5f; color:#93c5fd; border:none; border-radius:6px; padding:6px; cursor:pointer; font-size:0.78rem;">✏️ Editar</button>
+                  <button onclick="masterDeleteSponsor('${id}','${(s.name||'').replace(/'/g,"\'")}')"
+                    style="flex:1; background:#7f1d1d; color:#fca5a5; border:none; border-radius:6px; padding:6px; cursor:pointer; font-size:0.78rem;">🗑️ Borrar</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>`
+      }
+    </div>
+  `;
+
+  // Guardar datos para edición
+  window._masterSponsorsData = sponsors;
 }
 window.renderMasterPatrocinadores = renderMasterPatrocinadores;
+
+function openMasterSponsorForm() {
+  const box = document.getElementById('master-sponsor-form-box');
+  if (box) { box.style.display = 'block'; }
+  document.getElementById('ms-sponsor-edit-id').value = '';
+  document.getElementById('ms-sponsor-name').value = '';
+  document.getElementById('ms-sponsor-link').value = '';
+  document.getElementById('ms-sponsor-logo-name').textContent = 'Ningún archivo';
+  const prev = document.getElementById('ms-sponsor-logo-preview');
+  if (prev) prev.style.display = 'none';
+  document.getElementById('master-sponsor-form-title').textContent = '➕ Nuevo Patrocinador';
+}
+window.openMasterSponsorForm = openMasterSponsorForm;
+
+function closeMasterSponsorForm() {
+  const box = document.getElementById('master-sponsor-form-box');
+  if (box) box.style.display = 'none';
+}
+window.closeMasterSponsorForm = closeMasterSponsorForm;
+
+function previewMasterSponsorLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('ms-sponsor-logo-name').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = document.getElementById('ms-sponsor-logo-img');
+    const prev = document.getElementById('ms-sponsor-logo-preview');
+    img.src = e.target.result;
+    if (prev) prev.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+window.previewMasterSponsorLogo = previewMasterSponsorLogo;
+
+async function saveMasterSponsor() {
+  const name = document.getElementById('ms-sponsor-name').value.trim();
+  const link = document.getElementById('ms-sponsor-link').value.trim();
+  const editId = document.getElementById('ms-sponsor-edit-id').value;
+  const logoInput = document.getElementById('ms-sponsor-logo');
+  const logoFile = logoInput?.files?.[0];
+
+  if (!name) return alert('⚠️ El nombre es obligatorio.');
+
+  let logoData = null;
+  if (logoFile) {
+    try {
+      logoData = await resizeAndEncodeImage(logoFile, 300, 0.8);
+    } catch (err) {
+      return alert('❌ Error al procesar la imagen: ' + err.message);
+    }
+  }
+
+  if (editId) {
+    // Edición — preservar logo si no se sube uno nuevo
+    const existing = window._masterSponsorsData?.[editId] || {};
+    const updated = { name, link, logo: logoData || existing.logo || '' };
+    await update(ref(db, `sponsors/${editId}`), updated);
+    alert('✅ Patrocinador actualizado.');
+  } else {
+    // Nuevo
+    if (!logoFile) return alert('⚠️ Selecciona un logo para el patrocinador.');
+    await push(ref(db, 'sponsors'), { name, link, logo: logoData });
+    alert('✅ Patrocinador agregado.');
+  }
+
+  closeMasterSponsorForm();
+  renderMasterPatrocinadores();
+}
+window.saveMasterSponsor = saveMasterSponsor;
+
+function masterEditSponsor(id) {
+  const s = window._masterSponsorsData?.[id];
+  if (!s) return;
+  openMasterSponsorForm();
+  document.getElementById('ms-sponsor-edit-id').value = id;
+  document.getElementById('ms-sponsor-name').value = s.name || '';
+  document.getElementById('ms-sponsor-link').value = s.link || '';
+  document.getElementById('master-sponsor-form-title').textContent = '✏️ Editar Patrocinador';
+  if (s.logo) {
+    const img = document.getElementById('ms-sponsor-logo-img');
+    const prev = document.getElementById('ms-sponsor-logo-preview');
+    img.src = s.logo;
+    if (prev) prev.style.display = 'block';
+    document.getElementById('ms-sponsor-logo-name').textContent = 'Logo actual (carga uno nuevo para cambiar)';
+  }
+}
+window.masterEditSponsor = masterEditSponsor;
+
+async function masterDeleteSponsor(id, name) {
+  if (!confirm(`¿Eliminar al patrocinador "${name}"?`)) return;
+  await remove(ref(db, `sponsors/${id}`));
+  renderMasterPatrocinadores();
+}
+window.masterDeleteSponsor = masterDeleteSponsor;
 
 window.showMasterTab = showMasterTab;
 window.masterToggleTournament = masterToggleTournament;
