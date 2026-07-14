@@ -31,6 +31,7 @@ let globalTeams = {};
 let globalVenues = {};
 let globalMatches = {};
 let globalFormats = {};
+let globalAllTeams = {}; // Todos los equipos de todos los torneos (para Padrón Global)
 
 const categoriesConfig = {
   "chupon": { label: "🍼 Chupon", desc: "Iniciación y psicomotricidad básica (4-6 años)" },
@@ -308,6 +309,17 @@ async function handleLogout() {
   await signOut(auth);
   location.reload();
 }
+
+// ✅ CORRECCIÓN: signOutAdmin — usada en el botón del Panel Master
+async function signOutAdmin() {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error("Error al cerrar sesión:", error);
+    alert("Error al cerrar sesión: " + error.message);
+  }
+}
+window.signOutAdmin = signOutAdmin;
 
 // ============================================
 // NAVEGACIÓN
@@ -946,6 +958,69 @@ const CREDENTIAL_CARD_CSS = `
 
 // ✅ REFACTOR: markup de las 2 tarjetas (frente/reverso), reutilizable en
 // impresión individual y en la exportación masiva en ZIP.
+function buildCoachCredentialCardMarkup(data) {
+  const { name, club, categoryLabel, photo, playerID, curp, birth, phone, email } = data;
+  return `
+      <div class="card front">
+        <div class="header">
+          <img src="${APP_LOGO_URL}">
+          <span>Entrenador Oficial - Dribla, Pasa y Encesta</span>
+        </div>
+        <div class="photo-box">
+          <img src="${photo}" crossorigin="anonymous">
+        </div>
+        <div class="main-data">
+          <p class="label">Nombre del Entrenador</p>
+          <p class="value">${name}</p>
+          <p class="label">Club / Equipo</p>
+          <p class="value">${club || '---'}</p>
+          <p class="label">Categoría</p>
+          <p class="value">${categoryLabel || '---'}</p>
+          <p class="label" style="color:#10b981;">ROL</p>
+          <p class="value" style="color:#10b981; font-size:13px; font-weight:bold;">👨‍🏫 ENTRENADOR</p>
+        </div>
+        <div class="front-logo-band">
+          <img src="${LOGO_FRENTE_URL}" crossorigin="anonymous">
+          <div class="player-num" style="background:#10b981;"></div>
+        </div>
+        <div class="id-footer">ID ENTRENADOR: ${playerID}</div>
+      </div>
+
+      <div class="card back">
+        <div class="back-top">
+          <img src="${LOGO_REVERSO_URL}" crossorigin="anonymous">
+        </div>
+        <div class="back-grid">
+          <div>
+            <p class="label">CURP</p>
+            <p class="value">${curp || '---'}</p>
+          </div>
+          <div>
+            <p class="label">Fecha Nacimiento</p>
+            <p class="value">${birth || '---'}</p>
+          </div>
+          <div>
+            <p class="label">Teléfono</p>
+            <p class="value">${phone || '---'}</p>
+          </div>
+          <div>
+            <p class="label">ID Credencial</p>
+            <p class="value">${playerID}</p>
+          </div>
+        </div>
+
+        <div class="resp-box">
+          <p class="label">Correo Electrónico</p>
+          <p class="value" style="font-size:9px;">${email || '---'}</p>
+          <p class="value" style="font-size:9px; color:#10b981; font-weight:bold; margin-top:6px;">ENTRENADOR CERTIFICADO</p>
+        </div>
+
+        <div class="signature-area">
+          <div class="signature-line">Firma del Delegado / Administrador</div>
+        </div>
+      </div>`;
+}
+
 function buildCredentialCardMarkup(data) {
   const { name, club, categoryLabel, photo, playerID, vigenciaTexto, curp, birth, bloodType, responsibleName, responsiblePhone, number } = data;
   return `
@@ -2756,7 +2831,7 @@ window.printPlayerID = printPlayerID;
 // desligados de cualquier torneo/equipo — sirve para expedir credenciales
 // aunque todavía no exista una competencia activa.
 let globalAthletes = {};
-let globalAllTeams = {}; // Todos los equipos de todos los torneos (para Padrón Global sin entrar a competencia)
+// globalAllTeams ya se declara al inicio del archivo (movido para evitar hoisting issues)
 let standaloneSearchTerm = '';
 
 function initGlobalAthletesObserver() {
@@ -3066,18 +3141,34 @@ async function handleStandalonePlayerSubmit(e) {
     personData.category = document.getElementById('standaloneCoachCategory').value;
   }
 
-  push(ref(db, 'athletes'), personData).then(() => {
-    const label = tipo === 'entrenador' ? 'Entrenador' : 'Atleta';
-    alert(`✅ ${label} registrado con éxito.\nID Generado: ${uniqueID}`);
-    e.target.reset();
-    // Reset foto preview
-    const previewBox = document.getElementById('standalonePlayerPhotoPreviewBox');
-    const fileNameSpan = document.getElementById('standalonePlayerPhotoFileName');
-    if (previewBox) previewBox.style.display = 'none';
-    if (fileNameSpan) fileNameSpan.textContent = 'Ningún archivo seleccionado';
-    // Volver al tab atleta por defecto
-    toggleStandaloneTipo('atleta');
-  });
+  // Verificar que hay sesión activa antes de intentar escribir
+  if (!currentUserUid) {
+    return alert('❌ No hay sesión activa. Por favor inicia sesión primero.');
+  }
+
+  console.log('📤 Intentando guardar en /athletes — UID:', currentUserUid, '| Rol:', currentUserRole);
+
+  push(ref(db, 'athletes'), personData)
+    .then(() => {
+      const label = tipo === 'entrenador' ? 'Entrenador' : 'Atleta';
+      alert(`✅ ${label} registrado con éxito.\nID Generado: ${uniqueID}`);
+      e.target.reset();
+      // Reset foto preview
+      const previewBox = document.getElementById('standalonePlayerPhotoPreviewBox');
+      const fileNameSpan = document.getElementById('standalonePlayerPhotoFileName');
+      if (previewBox) previewBox.style.display = 'none';
+      if (fileNameSpan) fileNameSpan.textContent = 'Ningún archivo seleccionado';
+      // Volver al tab atleta por defecto
+      toggleStandaloneTipo('atleta');
+    })
+    .catch((err) => {
+      console.error('❌ Firebase rechazó la escritura:', err.code, err.message);
+      if (err.code === 'PERMISSION_DENIED') {
+        alert('❌ Sin permiso para guardar.\n\nRevisa las reglas de Firebase:\n- El admin debe tener acceso total\n- El coach debe estar activo\n\nError: ' + err.message);
+      } else {
+        alert('❌ Error al guardar: ' + err.message);
+      }
+    });
 }
 window.handleStandalonePlayerSubmit = handleStandalonePlayerSubmit;
 
@@ -3168,6 +3259,7 @@ function renderStandaloneAthleteList() {
         ${showOwnerCol ? `<td style="text-align:center;font-size:0.7rem;color:#aaa;">${p.createdByName || '---'}</td>` : ''}
         <td style="padding:4px;">
           <div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;align-items:center;">
+            ${currentUserRole === 'admin' ? `<button onclick="printStandaloneCoachID('${athleteId}')" title="Credencial Entrenador" style="background:#10b981;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🪪</button>` : ''}
             ${editable ? `<button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">✏️</button>
             <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:#7f1d1d;border:none;color:#fca5a5;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🗑️</button>` : `<span style="color:#555;font-size:0.7rem;">🔒</span>`}
           </div>
@@ -3425,6 +3517,64 @@ async function handleEditStandaloneAthleteSubmit(e) {
 window.handleEditStandaloneAthleteSubmit = handleEditStandaloneAthleteSubmit;
 
 // Credencial para atletas del registro independiente (sin equipo/torneo)
+function printStandaloneCoachID(athleteId) {
+  const p = globalAthletes[athleteId];
+  if (!p) return alert('No se encontró el registro del entrenador.');
+  openCoachCredentialWindow({
+    name: p.name || '',
+    club: p.club || '',
+    categoryLabel: categoriesConfig[p.category]?.label || p.category || '',
+    photo: p.photo || 'https://via.placeholder.com/150',
+    playerID: p.playerID || athleteId,
+    curp: p.curp || '',
+    birth: p.birth || '',
+    phone: p.phone || '',
+    email: p.email || ''
+  });
+}
+window.printStandaloneCoachID = printStandaloneCoachID;
+
+function openCoachCredentialWindow(data) {
+  const { name, playerID } = data;
+  const cardMarkup = buildCoachCredentialCardMarkup(data);
+
+  const existing = document.getElementById('credentialModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'credentialModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:20px;box-sizing:border-box;';
+
+  modal.innerHTML = `
+    <div style="width:100%;max-width:700px;">
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;">
+        <button onclick="printCredentialModal()" style="padding:10px 22px;cursor:pointer;font-weight:bold;background:#10b981;color:white;border:none;border-radius:8px;font-size:0.95rem;">🖨️ Imprimir</button>
+        <button onclick="downloadCredentialAsImage('${(name||'').replace(/'/g,"\'")}','${playerID||''}')" style="padding:10px 22px;cursor:pointer;font-weight:bold;background:#2563eb;color:white;border:none;border-radius:8px;font-size:0.95rem;">⬇️ Descargar PNG</button>
+        <button onclick="document.getElementById('credentialModal').remove()" style="padding:10px 22px;cursor:pointer;font-weight:bold;background:#64748b;color:white;border:none;border-radius:8px;font-size:0.95rem;">✕ Cerrar</button>
+      </div>
+      <p style="color:#94a3b8;text-align:center;font-size:0.78rem;margin-bottom:16px;">Activa "Gráficos de fondo" en el diálogo de impresión para conservar los colores.</p>
+      <div id="credWrapper" style="display:flex;flex-direction:column;align-items:center;gap:16px;">
+        <style>${CREDENTIAL_CARD_CSS}</style>
+        ${cardMarkup}
+      </div>
+    </div>
+  `;
+
+  const masterPanel = document.getElementById('admin-master-panel');
+  const masterWasOpen = masterPanel && masterPanel.style.display !== 'none';
+  if (masterWasOpen) masterPanel.style.zIndex = '9000';
+
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      modal.remove();
+      if (masterWasOpen && masterPanel) masterPanel.style.zIndex = '9999';
+    }
+  });
+
+  document.body.appendChild(modal);
+}
+window.openCoachCredentialWindow = openCoachCredentialWindow;
+
 function printStandaloneAthleteID(athleteId) {
   const p = globalAthletes[athleteId];
   if (!p) return;
@@ -4428,6 +4578,7 @@ window.masterCreateCoach = masterCreateCoach;
 window.masterToggleCoach = masterToggleCoach;
 window.filterMasterPadron = filterMasterPadron;
 window.masterGenerateCredential = masterGenerateCredential;
+window.masterGenerateCredentialById = masterGenerateCredentialById; // ✅ CORRECCIÓN: faltaba esta exposición
 window.exportMasterPadronPDF = exportMasterPadronPDF;
 window.masterToggleUserRole = masterToggleUserRole;
 window.masterToggleUserActive = masterToggleUserActive;

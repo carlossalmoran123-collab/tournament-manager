@@ -9,8 +9,6 @@
   <link rel="stylesheet" href="styles.css">
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- ✅ NUEVO: librerías para exportar todas las credenciales en un solo PDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -19,7 +17,6 @@
   <!-- ── BOTONES FLOTANTES ESQUINA SUPERIOR DERECHA ── -->
   <div style="position:fixed; top:14px; right:16px; z-index:99999; display:flex; gap:8px; align-items:center;">
 
-    <!-- Botón Panel Maestro (solo visible cuando el admin está logueado) -->
     <button id="btnGoToAdminPrep"
       style="display:none; background:#ff6b00; color:#000; border:none;
              font-size:0.75rem; font-weight:800; text-transform:uppercase;
@@ -28,7 +25,6 @@
       ⚙ Panel Maestro
     </button>
 
-    <!-- Botón login (solo visible cuando NO está logueado) -->
     <div id="floating-admin-btn-wrapper">
       <button id="floatingAdminToggle"
         onclick="toggleFloatingLogin()"
@@ -41,7 +37,6 @@
         onmouseout="this.style.background='rgba(255,107,0,0.12)'"
       >⚙ Admin</button>
 
-      <!-- Mini panel de login flotante -->
       <div id="floating-login-panel" style="
           display:none; position:absolute; top:38px; right:0;
           background:#171d26; border:1px solid #262f3d;
@@ -63,8 +58,8 @@
   <div id="competition-selector-screen" class="selector-container">
     <div class="selector-card">
       <div class="logo-container">
-    <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" alt="Logo" class="main-logo">
-</div>
+        <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" alt="Logo" class="main-logo">
+      </div>
       <h2>Panel del Torneo</h2>
       <p class="selector-subtitle">Selecciona el evento deportivo activo o accede como administrador.</p>
 
@@ -92,14 +87,13 @@
         </form>
       </div>
 
-      <!-- btnGoToAdminPrep movido a esquina superior derecha -->
-
-      <!-- ✅ NUEVO: acceso directo a credenciales, sin necesidad de elegir competencia -->
       <button id="btnGoToStandaloneAthletes" class="btn-secondary admin-only-block" style="display:none; margin-top:10px;">🪪 Registro y Credenciales de Atletas</button>
     </div>
   </div>
 
-  <!-- ✅ NUEVO: PANTALLA DE REGISTRO INDEPENDIENTE DE ATLETAS (SIN COMPETENCIA) -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- PANTALLA DE REGISTRO INDEPENDIENTE DE ATLETAS                     -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
   <div id="athletes-standalone-screen" style="display:none;">
     <header class="app-header">
       <div class="header-container" style="display: flex; align-items: center; gap: 15px; padding: 10px 20px;">
@@ -114,27 +108,38 @@
 
     <main class="app-main-container">
       <div class="admin-form-card">
-        <h3>🏃 Registrar Nuevo Atleta</h3>
+
+        <!-- ✅ TABS: Atleta / Entrenador -->
+        <div style="display:flex; gap:8px; margin-bottom:20px;">
+          <button id="btnTipoAtleta" onclick="toggleStandaloneTipo('atleta')"
+            style="flex:1; padding:10px; border-radius:8px; border:2px solid #ff6b00;
+                   background:#ff6b00; color:#fff; font-weight:bold; cursor:pointer; font-size:0.85rem;">
+            🏃 Atleta
+          </button>
+          <button id="btnTipoEntrenador" onclick="toggleStandaloneTipo('entrenador')"
+            style="flex:1; padding:10px; border-radius:8px; border:2px solid #334155;
+                   background:transparent; color:#94a3b8; font-weight:bold; cursor:pointer; font-size:0.85rem;">
+            👨‍🏫 Entrenador
+          </button>
+        </div>
+
+        <!-- Título dinámico del formulario -->
+        <h3 id="standaloneFormTitle">🏃 Registrar Nuevo Atleta</h3>
+
+        <!-- Campo hidden para saber el tipo seleccionado -->
+        <input type="hidden" id="standalonePersonType" value="atleta">
+
         <form id="standalonePlayerForm">
+
+          <!-- Nombre (compartido atleta/entrenador) -->
           <div class="form-group">
-            <label>Nombre Completo:</label>
+            <label id="standaloneNameLabel">Nombre Completo:</label>
             <input type="text" id="standalonePlayerName" placeholder="Nombre del niño/joven" required>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div class="form-group">
-              <label>Club / Equipo (texto libre):</label>
-              <input type="text" id="standalonePlayerClub" placeholder="Nombre del club" required>
-            </div>
-            <div class="form-group">
-              <label>Categoría:</label>
-              <select id="standalonePlayerCategory" required></select>
-            </div>
-          </div>
-
-          <!-- Foto: botón de subida (JPG/PNG) - IDs únicos para no chocar con el formulario de jugadores por equipo -->
+          <!-- Foto (compartida) -->
           <div class="form-group" style="margin-bottom:12px;">
-            <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Foto del Atleta (JPG o PNG)</label>
+            <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Foto (JPG o PNG)</label>
             <label for="standalonePlayerPhoto" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
               📤 Subir Foto
               <input type="file" id="standalonePlayerPhoto" accept="image/png, image/jpeg" style="display:none;" onchange="previewStandalonePlayerPhoto(this)">
@@ -145,53 +150,99 @@
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-            <div class="form-group">
-              <label>CURP:</label>
-              <input type="text" id="standalonePlayerCurp" maxlength="18" placeholder="18 caracteres" required style="text-transform: uppercase;">
-            </div>
-            <div class="form-group">
-              <label>F. Nacimiento:</label>
-              <input type="date" id="standalonePlayerBirth" required>
-            </div>
-            <div class="form-group">
-              <label>Número (#):</label>
-              <input type="number" id="standalonePlayerNumber" placeholder="00" required>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
-            <div class="form-group">
-              <label>Tipo de Sangre:</label>
-              <select id="standalonePlayerBlood">
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Nombre del Responsable (Padre/Tutor):</label>
-              <input type="text" id="standalonePlayerRespName" placeholder="Nombre completo" required>
-            </div>
-          </div>
-
+          <!-- Email (compartido) -->
           <div class="form-group">
-            <label>Teléfono del Responsable:</label>
-            <input type="tel" id="standalonePlayerRespPhone" placeholder="10 dígitos" required>
+            <label>Correo electrónico (opcional):</label>
+            <input type="email" id="standalonePlayerEmail" placeholder="correo@ejemplo.com">
           </div>
 
-          <button type="submit" class="btn-primary">💾 Registrar Atleta y Generar ID</button>
+          <!-- ══ CAMPOS EXCLUSIVOS ATLETA ══ -->
+          <div id="standaloneAtletaFields">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div class="form-group">
+                <label>Club / Equipo:</label>
+                <input type="text" id="standalonePlayerClub" placeholder="Nombre del club">
+              </div>
+              <div class="form-group">
+                <label>Categoría:</label>
+                <select id="standalonePlayerCategory"></select>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+              <div class="form-group">
+                <label>CURP:</label>
+                <input type="text" id="standalonePlayerCurp" maxlength="18" placeholder="18 caracteres" style="text-transform: uppercase;">
+              </div>
+              <div class="form-group">
+                <label>F. Nacimiento:</label>
+                <input type="date" id="standalonePlayerBirth">
+              </div>
+              <div class="form-group">
+                <label>Número (#):</label>
+                <input type="number" id="standalonePlayerNumber" placeholder="00">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
+              <div class="form-group">
+                <label>Tipo de Sangre:</label>
+                <select id="standalonePlayerBlood">
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Nombre del Responsable (Padre/Tutor):</label>
+                <input type="text" id="standalonePlayerRespName" placeholder="Nombre completo">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Teléfono del Responsable:</label>
+              <input type="tel" id="standalonePlayerRespPhone" placeholder="10 dígitos">
+            </div>
+          </div><!-- /standaloneAtletaFields -->
+
+          <!-- ══ CAMPOS EXCLUSIVOS ENTRENADOR ══ -->
+          <div id="standaloneEntrenadorFields" style="display:none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div class="form-group">
+                <label>Club / Equipo que dirige:</label>
+                <input type="text" id="standaloneCoachClub" placeholder="Nombre del club">
+              </div>
+              <div class="form-group">
+                <label>Categoría que entrena:</label>
+                <select id="standaloneCoachCategory">
+                  <option value="">— Todas —</option>
+                </select>
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div class="form-group">
+                <label>CURP (opcional):</label>
+                <input type="text" id="standalonePlayerCurp2" maxlength="18" placeholder="18 caracteres" style="text-transform: uppercase;">
+              </div>
+              <div class="form-group">
+                <label>F. Nacimiento (opcional):</label>
+                <input type="date" id="standalonePlayerBirth2">
+              </div>
+            </div>
+          </div><!-- /standaloneEntrenadorFields -->
+
+          <button id="standaloneSubmitBtn" type="submit" class="btn-primary">💾 Registrar Atleta y Generar ID</button>
         </form>
 
         <div id="standalone-athlete-list" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;"></div>
       </div>
 
-      <!-- ✅ NUEVO: Editar Atleta (aparece solo al presionar ✏️ en la lista) -->
+      <!-- Editar Atleta -->
       <div id="editStandaloneAthleteCard" class="admin-form-card" style="display:none; border: 2px solid #ff6b00;">
         <h3>✏️ Editar Atleta</h3>
         <form id="editStandaloneAthleteForm">
@@ -235,14 +286,10 @@
             <div class="form-group">
               <label>Tipo de Sangre:</label>
               <select id="editStandaloneBlood">
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
+                <option value="O+">O+</option><option value="O-">O-</option>
+                <option value="A+">A+</option><option value="A-">A-</option>
+                <option value="B+">B+</option><option value="B-">B-</option>
+                <option value="AB+">AB+</option><option value="AB-">AB-</option>
               </select>
             </div>
             <div class="form-group">
@@ -266,15 +313,12 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════ -->
-  <!-- PANEL MASTER — solo visible para el administrador               -->
+  <!-- PANEL MASTER                                                    -->
   <!-- ═══════════════════════════════════════════════════════════════ -->
   <div id="admin-master-screen" style="display:none; min-height:100vh; background:#0a0f1a;">
-
-    <!-- Header -->
     <header class="app-header">
       <div class="header-container" style="display:flex; align-items:center; gap:15px; padding:10px 20px;">
-        <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png"
-             alt="Logo" style="height:60px; width:auto;">
+        <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" alt="Logo" style="height:60px; width:auto;">
         <div style="flex:1;">
           <h1 style="margin:0; font-size:1.4rem; color:#fff;">Panel Master</h1>
           <p style="margin:0; font-size:0.8rem; color:#aaa;">Gestión de todas tus competencias</p>
@@ -288,8 +332,6 @@
     </header>
 
     <main style="max-width:900px; margin:0 auto; padding:24px 16px;">
-
-      <!-- Mis Competencias -->
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h2 style="margin:0; color:#fff; font-size:1.1rem;">📋 Mis Competencias</h2>
       </div>
@@ -297,12 +339,8 @@
         <p style="color:#aaa; text-align:center; padding:40px;">Cargando...</p>
       </div>
 
-      <!-- Crear nueva competencia -->
-      <div style="background:#0f172a; border:2px dashed #334155; border-radius:12px;
-                  padding:24px; margin-top:24px;">
-        <h3 style="margin:0 0 16px 0; color:#ff6b00; font-size:1rem;">
-          ➕ Crear Nueva Competencia
-        </h3>
+      <div style="background:#0f172a; border:2px dashed #334155; border-radius:12px; padding:24px; margin-top:24px;">
+        <h3 style="margin:0 0 16px 0; color:#ff6b00; font-size:1rem;">➕ Crear Nueva Competencia</h3>
         <form id="eventForm" style="display:flex; gap:10px; flex-wrap:wrap;">
           <input type="text" id="eventName" placeholder="Nombre del torneo" required
             style="flex:2; min-width:200px; padding:10px 14px; border-radius:8px;
@@ -321,7 +359,6 @@
         </p>
       </div>
 
-      <!-- Acceso a registro de atletas independiente -->
       <div style="margin-top:16px; text-align:center;">
         <button id="btnGoToStandaloneAthletes2" onclick="goToStandaloneAthletes()"
           style="background:#1e2530; color:#aaa; border:1px solid #334155; padding:10px 20px;
@@ -329,7 +366,6 @@
           🪪 Registro y Credenciales de Atletas (Independiente)
         </button>
       </div>
-
     </main>
   </div>
 
@@ -337,16 +373,16 @@
   <div id="main-app-content" style="display: none;">
 
     <header class="app-header">
-  <div class="header-container" style="display: flex; align-items: center; gap: 15px; padding: 10px 20px;">
-    <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" alt="Logo" style="height: 60px; width: auto;">
-    <div style="flex: 1;">
-      <h1 id="appTournamentTitle" style="margin: 0; font-size: 1.5rem;">Cargando...</h1>
-      <p class="tournament-meta" style="margin: 0;">📍 <span id="appTournamentVenue">--</span></p>
-    </div>
-    <button id="btnBackToSelector" onclick="backToMasterFromEvent()" class="btn-secondary" style="white-space:nowrap;">↩️ Panel Master</button>
-    <button id="logoutBtn" class="btn-secondary admin-only" style="display:none;">🔒 Cerrar Sesión</button>
-  </div>
-</header>
+      <div class="header-container" style="display: flex; align-items: center; gap: 15px; padding: 10px 20px;">
+        <img src="https://i.ibb.co/fzzhsgsG/Whats-App-Image-2026-06-17-at-3-25-11-PM-removebg-preview.png" alt="Logo" style="height: 60px; width: auto;">
+        <div style="flex: 1;">
+          <h1 id="appTournamentTitle" style="margin: 0; font-size: 1.5rem;">Cargando...</h1>
+          <p class="tournament-meta" style="margin: 0;">📍 <span id="appTournamentVenue">--</span></p>
+        </div>
+        <button id="btnBackToSelector" onclick="backToMasterFromEvent()" class="btn-secondary" style="white-space:nowrap;">↩️ Panel Master</button>
+        <button id="logoutBtn" class="btn-secondary admin-only" style="display:none;">🔒 Cerrar Sesión</button>
+      </div>
+    </header>
 
     <nav class="app-nav">
       <ul class="nav-links">
@@ -361,35 +397,29 @@
 
     <main class="app-main-container">
 
-      <!-- SECCIÓN: DASHBOARD -->
+      <!-- DASHBOARD -->
       <section id="dashboard" class="section active">
         <div class="dashboard-grid">
-          <div class="stat-card">
-            <h3>Clubes</h3>
-            <p id="dashTeamsCount" class="stat-number">0</p>
-          </div>
-          <div class="stat-card">
-            <h3>Partidos</h3>
-            <p id="dashMatchesCount" class="stat-number">0</p>
-          </div>
+          <div class="stat-card"><h3>Clubes</h3><p id="dashTeamsCount" class="stat-number">0</p></div>
+          <div class="stat-card"><h3>Partidos</h3><p id="dashMatchesCount" class="stat-number">0</p></div>
         </div>
         <h2 class="section-title" style="margin-top: 30px;">🛡️ Equipos Inscritos</h2>
         <div id="dashboardTeamsContainer" class="teams-pills-grid"></div>
       </section>
 
-      <!-- SECCIÓN: CATEGORÍAS -->
+      <!-- CATEGORÍAS -->
       <section id="categories" class="section">
         <h2 class="section-title">🏀 Ramas y Categorías</h2>
         <div id="categoriesContainer" class="categories-grid"></div>
       </section>
 
-      <!-- SECCIÓN: ROL DE JUEGOS -->
+      <!-- ROL DE JUEGOS -->
       <section id="roles" class="section">
         <h2 class="section-title">📅 Programación y Roles de Juego</h2>
         <div id="venuesRolesContainer" class="venues-roles-stack"></div>
       </section>
 
-      <!-- SECCIÓN: CLASIFICACIÓN -->
+      <!-- CLASIFICACIÓN -->
       <section id="classification" class="section">
         <h2 class="section-title">📊 Tabla de Posiciones y Clasificación</h2>
         <div class="form-group" style="max-width: 300px; margin-bottom: 20px;">
@@ -399,41 +429,37 @@
         <div id="classificationTablesContainer"></div>
       </section>
 
-      <!-- ✅ NUEVO: SECCIÓN PADRÓN GENERAL DE JUGADORES (solo admin) -->
+      <!-- PADRÓN GENERAL -->
       <section id="playerRegistry" class="section">
         <h2 class="section-title">📋 Padrón General de Jugadores</h2>
         <p style="color:#aaa; font-size:0.85rem; margin-top:-10px;">
-          Todos los jugadores registrados (por equipo del torneo activo + registro independiente de entrenadores),
-          agrupados por año de nacimiento y en orden alfabético. Se marca en rojo si un mismo nombre aparece más de una vez.
+          Todos los jugadores registrados, agrupados por año de nacimiento. Se marca en rojo si un nombre aparece más de una vez.
         </p>
-
         <div style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:10px 0 15px 0;">
           <input type="text" id="playerRegistrySearchInput" placeholder="🔍 Buscar por nombre, club o CURP..."
             oninput="filterPlayerRegistry(this.value)"
             style="flex:1; min-width:250px; max-width:400px; padding:8px 12px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#fff; box-sizing:border-box;">
-
           <button id="btnExportAllCredentials" onclick="exportAllCredentialsPDF()"
             style="background:#ff6b00; color:white; border:none; padding:10px 16px; border-radius:6px; cursor:pointer; font-weight:bold; white-space:nowrap;">
             📄 Descargar Todas las Credenciales (PDF)
           </button>
         </div>
         <div id="exportCredentialsProgress" style="font-size:0.8rem; color:#10b981; margin-bottom:10px;"></div>
-
         <div id="playerRegistryDuplicatesBox" style="margin-bottom:15px;"></div>
         <div id="playerRegistryContainer"></div>
       </section>
 
-      <!-- SECCIÓN: ADMINISTRACIÓN -->
+      <!-- ADMIN -->
       <section id="admin" class="section">
         <h2 class="section-title">🛠️ Panel de Control Técnico</h2>
 
         <div id="admin-dashboard-panels" class="admin-panels-grid" style="display:none;">
 
-          <!-- ✅ NUEVO: MIS COMPETENCIAS (control de visibilidad) -->
+          <!-- MIS COMPETENCIAS -->
           <div class="admin-form-card" style="grid-column: 1 / -1; border: 2px solid #ff6b00;">
             <h3>📋 Mis Competencias</h3>
             <p style="font-size:0.8rem; color:#aaa; margin-top:-8px; margin-bottom:16px;">
-              Decide qué competencias son visibles al público. Las bloqueadas solo las ves tú como administrador.
+              Decide qué competencias son visibles al público.
             </p>
             <div id="competitions-manager-list">
               <p style="color:#aaa; font-size:0.85rem; font-style:italic;">Cargando competencias...</p>
@@ -448,7 +474,6 @@
                 <label>Nombre del Patrocinador:</label>
                 <input type="text" id="sponsorName" required>
               </div>
-
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🏷️ Logo del Patrocinador (JPG o PNG)</label>
                 <label for="sponsorLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -460,7 +485,6 @@
                   <img id="sponsorLogoPreview" src="" style="width:80px; height:80px; border-radius:8px; object-fit:cover; border:2px solid #ff6b00; background:#fff;">
                 </div>
               </div>
-
               <div class="form-group">
                 <label>Link Web/Facebook:</label>
                 <input type="url" id="sponsorLink" placeholder="https://...">
@@ -470,7 +494,7 @@
             <div id="admin-sponsor-list" style="margin-top:10px; font-size:0.8rem;"></div>
           </div>
 
-          <!-- REGISTRO DE ATLETAS -->
+          <!-- REGISTRO DE ATLETAS POR EQUIPO -->
           <div class="admin-form-card">
             <h3>🏃 Registro Oficial de Atletas</h3>
             <form id="playerForm">
@@ -478,13 +502,11 @@
                 <label>Club / Equipo:</label>
                 <select id="selectTeamForPlayer" required></select>
               </div>
-
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="form-group">
                   <label>Nombre Completo:</label>
                   <input type="text" id="playerName" placeholder="Nombre del niño/joven" required>
                 </div>
-
                 <div class="form-group" style="margin-bottom:12px;">
                   <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Foto del Jugador (JPG o PNG)</label>
                   <label for="playerPhoto" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -497,7 +519,6 @@
                   </div>
                 </div>
               </div>
-
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
                 <div class="form-group">
                   <label>CURP:</label>
@@ -512,19 +533,14 @@
                   <input type="number" id="playerNumber" placeholder="00" required>
                 </div>
               </div>
-
               <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
                 <div class="form-group">
                   <label>Tipo de Sangre:</label>
                   <select id="playerBlood">
-                    <option value="O+">O+</option>
-                    <option value="O-">O-</option>
-                    <option value="A+">A+</option>
-                    <option value="A-">A-</option>
-                    <option value="B+">B+</option>
-                    <option value="B-">B-</option>
-                    <option value="AB+">AB+</option>
-                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option><option value="O-">O-</option>
+                    <option value="A+">A+</option><option value="A-">A-</option>
+                    <option value="B+">B+</option><option value="B-">B-</option>
+                    <option value="AB+">AB+</option><option value="AB-">AB-</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -532,15 +548,12 @@
                   <input type="text" id="playerRespName" placeholder="Nombre completo" required>
                 </div>
               </div>
-
               <div class="form-group">
                 <label>Teléfono del Responsable:</label>
                 <input type="tel" id="playerRespPhone" placeholder="10 dígitos" required>
               </div>
-
               <button type="submit" class="btn-primary">💾 Registrar Atleta y Generar ID</button>
             </form>
-
             <div id="admin-player-list" style="margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
               <p style="color: #888; font-style: italic;">Selecciona un equipo para ver su roster.</p>
             </div>
@@ -554,7 +567,6 @@
                 <label>Nombre del Equipo:</label>
                 <input type="text" id="regTeamName" required>
               </div>
-
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🛡️ Logo del Equipo (JPG o PNG, opcional)</label>
                 <label for="regTeamLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -566,7 +578,6 @@
                   <img id="regTeamLogoPreview" src="" style="width:80px; height:80px; border-radius:8px; object-fit:cover; border:2px solid #ff6b00; background:#fff;">
                 </div>
               </div>
-
               <div class="form-group">
                 <label>Categoría:</label>
                 <select id="regTeamCategory" required></select>
@@ -575,67 +586,52 @@
             </form>
           </div>
 
+          <!-- REGISTRAR SEDE -->
           <div class="admin-form-card">
-  <h3>🏢 Registrar Nueva Sede (Cancha)</h3>
-  <form id="venueForm">
-    <div class="form-group">
-      <label for="venueName">Nombre de la Cancha:</label>
-      <input type="text" id="venueName" placeholder="Ej: Cancha Central" required>
-    </div>
-    <div class="form-group">
-      <label for="venueAddress">Dirección:</label>
-      <input type="text" id="venueAddress" placeholder="Ej: Av. Juárez #100">
-    </div>
-    <div class="form-group">
-      <label for="venueMapsUrl">Enlace Google Maps (URL):</label>
-      <input type="url" id="venueMapsUrl" placeholder="https://maps.google.com/...">
-    </div>
-    <button type="submit" class="btn-primary">🏢 Guardar Sede</button>
-  </form>
-</div>
+            <h3>🏢 Registrar Nueva Sede (Cancha)</h3>
+            <form id="venueForm">
+              <div class="form-group">
+                <label for="venueName">Nombre de la Cancha:</label>
+                <input type="text" id="venueName" placeholder="Ej: Cancha Central" required>
+              </div>
+              <div class="form-group">
+                <label for="venueAddress">Dirección:</label>
+                <input type="text" id="venueAddress" placeholder="Ej: Av. Juárez #100">
+              </div>
+              <div class="form-group">
+                <label for="venueMapsUrl">Enlace Google Maps (URL):</label>
+                <input type="url" id="venueMapsUrl" placeholder="https://maps.google.com/...">
+              </div>
+              <button type="submit" class="btn-primary">🏢 Guardar Sede</button>
+            </form>
+          </div>
 
-          <!-- Editar / Eliminar Sede -->
-<div class="admin-form-card">
-  <h3>✏️ / 🗑️ Editar o Eliminar Sede (Cancha)</h3>
-  <form id="editVenueForm">
-    <div class="form-group">
-      <label for="selectEditVenue">Seleccionar Sede:</label>
-      <select id="selectEditVenue" required style="width: 100%; padding: 8px; margin-bottom: 10px;">
-        <option value="">-- Selecciona una cancha --</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Nuevo Nombre:</label>
-      <input type="text" id="editVenueName" required>
-    </div>
-    <div class="form-group">
-      <label>Nueva Dirección:</label>
-      <input type="text" id="editVenueAddress">
-    </div>
-    <div class="form-group">
-      <label>Nueva URL Google Maps:</label>
-      <input type="url" id="editVenueMapsUrl">
-    </div>
-    <div style="display: flex; gap: 10px; margin-top: 15px;">
-      <button type="submit" class="btn-primary" style="flex: 1; background: #10b981; border: none; padding: 10px; cursor: pointer;">💾 Actualizar</button>
-      <button type="button" id="btnDeleteVenue" style="flex: 1; background: #ef4444; color: white; border: none; padding: 10px; cursor: pointer;">🗑️ Eliminar</button>
-    </div>
-  </form>
-</div>
+          <!-- EDITAR / ELIMINAR SEDE -->
+          <div class="admin-form-card">
+            <h3>✏️ / 🗑️ Editar o Eliminar Sede (Cancha)</h3>
+            <form id="editVenueForm">
+              <div class="form-group">
+                <label for="selectEditVenue">Seleccionar Sede:</label>
+                <select id="selectEditVenue" required style="width: 100%; padding: 8px; margin-bottom: 10px;">
+                  <option value="">-- Selecciona una cancha --</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Nuevo Nombre:</label><input type="text" id="editVenueName" required></div>
+              <div class="form-group"><label>Nueva Dirección:</label><input type="text" id="editVenueAddress"></div>
+              <div class="form-group"><label>Nueva URL Google Maps:</label><input type="url" id="editVenueMapsUrl"></div>
+              <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button type="submit" class="btn-primary" style="flex: 1; background: #10b981; border: none; padding: 10px; cursor: pointer;">💾 Actualizar</button>
+                <button type="button" id="btnDeleteVenue" style="flex: 1; background: #ef4444; color: white; border: none; padding: 10px; cursor: pointer;">🗑️ Eliminar</button>
+              </div>
+            </form>
+          </div>
 
           <!-- EDITAR / ELIMINAR EQUIPO -->
           <div class="admin-form-card">
             <h3>✏️ Editar o Eliminar Equipo</h3>
             <form id="editTeamForm">
-              <div class="form-group">
-                <label>Seleccionar equipo:</label>
-                <select id="selectEditTeam" required></select>
-              </div>
-              <div class="form-group">
-                <label>Nuevo Nombre:</label>
-                <input type="text" id="editTeamName" required>
-              </div>
-
+              <div class="form-group"><label>Seleccionar equipo:</label><select id="selectEditTeam" required></select></div>
+              <div class="form-group"><label>Nuevo Nombre:</label><input type="text" id="editTeamName" required></div>
               <div class="form-group" style="margin-bottom:12px;">
                 <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">🛡️ Logo del Equipo (deja vacío para mantener el actual)</label>
                 <label for="editTeamLogo" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:#ff6b00; color:#fff; border-radius:6px; cursor:pointer; font-weight:bold; font-size:0.85rem;">
@@ -648,16 +644,12 @@
                   <img id="editTeamLogoPreview" src="" style="width:80px; height:80px; border-radius:8px; object-fit:cover; border:2px solid #ff6b00; background:#fff;">
                 </div>
               </div>
-
               <div class="form-group">
                 <label>Asignar Grupo (a, b, c):</label>
                 <input type="text" id="editTeamGroup" maxlength="1" style="text-transform: lowercase;">
                 <small style="color: #ff6b00;">⚠️ Usar minúsculas para cálculos automáticos.</small>
               </div>
-              <div class="form-group">
-                <label>Categoría:</label>
-                <select id="editTeamCategory" required></select>
-              </div>
+              <div class="form-group"><label>Categoría:</label><select id="editTeamCategory" required></select></div>
               <div style="display: flex; gap: 10px; margin-top: 15px;">
                 <button type="submit" class="btn-primary" style="flex: 1; background: #10b981;">💾 Actualizar</button>
                 <button type="button" id="btnDeleteTeam" style="flex: 1; background: #ef4444; color: white;">🗑️ Eliminar</button>
@@ -677,10 +669,7 @@
                   <option value="final">Gran Final</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>Categoría:</label>
-                <select id="matchCategory" required></select>
-              </div>
+              <div class="form-group"><label>Categoría:</label><select id="matchCategory" required></select></div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <select id="selectLocal" required></select>
                 <select id="selectVisitor" required></select>
@@ -690,10 +679,7 @@
                 <input type="date" id="matchDate" required>
                 <input type="time" id="matchStartTime" required style="margin-top:5px;">
               </div>
-              <div class="form-group">
-                <label>Cancha:</label>
-                <select id="selectMatchVenue" required></select>
-              </div>
+              <div class="form-group"><label>Cancha:</label><select id="selectMatchVenue" required></select></div>
               <button type="submit" class="btn-primary">⚡ Publicar Partido</button>
             </form>
           </div>
@@ -702,10 +688,7 @@
           <div class="admin-form-card" style="border: 2px solid #ff6b00;">
             <h3>✏️ Corregir Partido</h3>
             <form id="editMatchForm">
-              <div class="form-group">
-                <label>Seleccionar partido:</label>
-                <select id="selectEditMatch" required></select>
-              </div>
+              <div class="form-group"><label>Seleccionar partido:</label><select id="selectEditMatch" required></select></div>
               <div class="form-group">
                 <label>Etapa:</label>
                 <select id="editMatchStage">
@@ -719,18 +702,12 @@
                 <input type="date" id="editMatchDate">
                 <input type="time" id="editMatchStartTime" style="margin-top:5px;">
               </div>
-              <div class="form-group">
-                <label>Categoría:</label>
-                <select id="editMatchCategory"></select>
-              </div>
+              <div class="form-group"><label>Categoría:</label><select id="editMatchCategory"></select></div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
                 <select id="editSelectLocal"></select>
                 <select id="editSelectVisitor"></select>
               </div>
-              <div class="form-group" style="margin-top: 10px;">
-                <label>Cancha:</label>
-                <select id="editMatchVenue"></select>
-              </div>
+              <div class="form-group" style="margin-top: 10px;"><label>Cancha:</label><select id="editMatchVenue"></select></div>
               <div style="display: flex; gap: 10px; margin-top: 15px;">
                 <button type="submit" class="btn-primary" style="flex: 3; background: #ff6b00;">🔄 Actualizar Juego</button>
                 <button type="button" id="btnDeleteMatch" style="flex: 1; background: #ef4444; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">🗑️ Borrar</button>
@@ -742,10 +719,7 @@
           <div class="admin-form-card">
             <h3>📝 Registrar Resultado</h3>
             <form id="scoreForm">
-              <div class="form-group">
-                <label>Seleccionar partido:</label>
-                <select id="scoreSelectMatch" required></select>
-              </div>
+              <div class="form-group"><label>Seleccionar partido:</label><select id="scoreSelectMatch" required></select></div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
                 <input type="number" id="scoreLocal" placeholder="Local" required>
                 <input type="number" id="scoreVisitor" placeholder="Visita" required>
@@ -754,29 +728,17 @@
             </form>
           </div>
 
-          <!-- Crear competencia se hace desde el Panel Master -->
-
           <!-- GESTIÓN DE ENTRENADORES -->
           <div class="admin-form-card" style="grid-column: 1 / -1; border: 2px solid #10b981;">
             <h3>👨‍🏫 Gestión de Entrenadores</h3>
             <p style="font-size:0.8rem; color:#aaa; margin-top:-5px;">
-              Crea cuentas para tus entrenadores. Ellos solo podrán entrar a registrar/editar/borrar
-              SUS propios atletas — nunca verán ni podrán tocar torneos, sedes, equipos, partidos o marcadores.
+              Crea cuentas para tus entrenadores. Solo podrán registrar/editar/borrar SUS propios atletas.
             </p>
             <form id="coachForm">
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-                <div class="form-group">
-                  <label>Nombre del Entrenador:</label>
-                  <input type="text" id="coachName" placeholder="Ej: Coach Juan" required>
-                </div>
-                <div class="form-group">
-                  <label>Correo de Acceso:</label>
-                  <input type="email" id="coachEmail" placeholder="coach@correo.com" required>
-                </div>
-                <div class="form-group">
-                  <label>Contraseña:</label>
-                  <input type="password" id="coachPassword" placeholder="Mínimo 6 caracteres" minlength="6" required>
-                </div>
+                <div class="form-group"><label>Nombre del Entrenador:</label><input type="text" id="coachName" placeholder="Ej: Coach Juan" required></div>
+                <div class="form-group"><label>Correo de Acceso:</label><input type="email" id="coachEmail" placeholder="coach@correo.com" required></div>
+                <div class="form-group"><label>Contraseña:</label><input type="password" id="coachPassword" placeholder="Mínimo 6 caracteres" minlength="6" required></div>
               </div>
               <button type="submit" class="btn-primary" style="background:#10b981;">➕ Crear Cuenta de Entrenador</button>
             </form>
@@ -789,75 +751,39 @@
       <!-- Editor unificado de jugadores -->
       <div id="editUnifiedPlayerCard" class="admin-form-card" style="display:none; border: 2px solid #ff6b00; margin-top:20px;">
         <h3>✏️ Editar Jugador</h3>
-
         <div id="editUnifiedTeamContext" style="display:none; background:rgba(255,107,0,0.08); padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:0.85rem;">
           <span id="editUnifiedContextLine"></span>
         </div>
-
         <form id="editUnifiedPlayerForm">
-          <div class="form-group">
-            <label>Nombre Completo:</label>
-            <input type="text" id="editUnifiedName" required>
-          </div>
-
+          <div class="form-group"><label>Nombre Completo:</label><input type="text" id="editUnifiedName" required></div>
           <div id="editUnifiedStandaloneFields" style="display:none;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-              <div class="form-group">
-                <label>Club / Equipo:</label>
-                <input type="text" id="editUnifiedClub">
-              </div>
-              <div class="form-group">
-                <label>Categoría:</label>
-                <select id="editUnifiedCategory"></select>
-              </div>
+              <div class="form-group"><label>Club / Equipo:</label><input type="text" id="editUnifiedClub"></div>
+              <div class="form-group"><label>Categoría:</label><select id="editUnifiedCategory"></select></div>
             </div>
           </div>
-
           <div class="form-group" style="margin-bottom:12px;">
             <label style="display:block; font-size:0.8rem; color:#aaa; margin-bottom:6px;">📷 Reemplazar Foto (opcional)</label>
             <input type="file" id="editUnifiedPhoto" accept="image/png, image/jpeg">
           </div>
-
           <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-            <div class="form-group">
-              <label>CURP:</label>
-              <input type="text" id="editUnifiedCurp" maxlength="18" style="text-transform: uppercase;">
-            </div>
-            <div class="form-group">
-              <label>F. Nacimiento:</label>
-              <input type="date" id="editUnifiedBirth">
-            </div>
-            <div class="form-group">
-              <label>Número (#):</label>
-              <input type="number" id="editUnifiedNumber">
-            </div>
+            <div class="form-group"><label>CURP:</label><input type="text" id="editUnifiedCurp" maxlength="18" style="text-transform: uppercase;"></div>
+            <div class="form-group"><label>F. Nacimiento:</label><input type="date" id="editUnifiedBirth"></div>
+            <div class="form-group"><label>Número (#):</label><input type="number" id="editUnifiedNumber"></div>
           </div>
-
           <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
             <div class="form-group">
               <label>Tipo de Sangre:</label>
               <select id="editUnifiedBlood">
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
+                <option value="O+">O+</option><option value="O-">O-</option>
+                <option value="A+">A+</option><option value="A-">A-</option>
+                <option value="B+">B+</option><option value="B-">B-</option>
+                <option value="AB+">AB+</option><option value="AB-">AB-</option>
               </select>
             </div>
-            <div class="form-group">
-              <label>Nombre del Responsable:</label>
-              <input type="text" id="editUnifiedRespName">
-            </div>
+            <div class="form-group"><label>Nombre del Responsable:</label><input type="text" id="editUnifiedRespName"></div>
           </div>
-
-          <div class="form-group">
-            <label>Teléfono del Responsable:</label>
-            <input type="tel" id="editUnifiedRespPhone">
-          </div>
-
+          <div class="form-group"><label>Teléfono del Responsable:</label><input type="tel" id="editUnifiedRespPhone"></div>
           <div style="display: flex; gap: 10px; margin-top: 15px;">
             <button type="submit" class="btn-primary" style="flex: 2; background: #10b981;">💾 Guardar Cambios</button>
             <button type="button" id="btnCancelEditUnifiedPlayer" style="flex: 1; background: #334155; color: white; border:none; border-radius:6px; cursor:pointer;">Cancelar</button>
@@ -869,12 +795,11 @@
   </div>
 
   <script type="module" src="script.js"></script>
+
   <div id="sponsor-banner" class="sponsor-footer">
     <span class="sponsor-label">Patrocinadores</span>
     <div class="sponsor-ticker-wrapper">
-      <div id="sponsor-display" class="sponsor-ticker-track">
-        <!-- los logos se inyectan aquí desde JS -->
-      </div>
+      <div id="sponsor-display" class="sponsor-ticker-track"></div>
     </div>
   </div>
 </body>
