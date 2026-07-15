@@ -102,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('editMatchCategory')?.addEventListener('change', updateEditMatchTeamsDropdowns);
 
   initGlobalTournamentsObserver();
-  initRolesObserver();
+  // initRolesObserver se llama solo para admin en onAuthStateChanged
   // initGlobalAthletesObserver() se llama desde onAuthStateChanged
   // después de conocer el rol del usuario
   populateStandaloneCategoryDropdown(); // categoriesConfig es estático, no depende de datos de Firebase
@@ -218,6 +218,8 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('btnGoToStandaloneAthletes').style.display = 'block';
         document.getElementById('btnGoToStandaloneAthletes').innerText = '🪪 Registro y Credenciales de Atletas';
       }
+      // Solo el admin necesita observar la lista de roles/coaches
+      initRolesObserver();
     }
     applyRoleBasedNavVisibility();
     syncFloatingAdminBtn(currentUserRole);
@@ -2871,6 +2873,105 @@ let globalAthletes = {};
 // globalAllTeams ya se declara al inicio del archivo (movido para evitar hoisting issues)
 let standaloneSearchTerm = '';
 
+
+
+// ══════════════════════════════════════════════════════════
+// DIAGNÓSTICO: Verificar acceso del coach a sus atletas
+// ══════════════════════════════════════════════════════════
+async function diagnosticCoachAccess() {
+  if (!currentUserUid) {
+    console.warn('🔍 DIAGNÓSTICO: No hay usuario autenticado');
+    return;
+  }
+  
+  console.log('═══════════════════════════════════════════');
+  console.log('🔍 DIAGNÓSTICO DE ACCESO DEL COACH');
+  console.log('═══════════════════════════════════════════');
+  console.log('UID:', currentUserUid);
+  console.log('Rol:', currentUserRole);
+  console.log('Nombre:', currentUserName);
+  console.log('globalAthletes actual:', Object.keys(globalAthletes).length, 'atletas');
+  console.log('Listener activo:', !!_athletesListenerCleanup);
+  
+  // Prueba 1: Leer TODOS los atletas
+  try {
+    const allSnap = await get(ref(db, 'athletes'));
+    const all = allSnap.val() || {};
+    const allCount = Object.keys(all).length;
+    const myCount = Object.values(all).filter(a => a && a.createdBy === currentUserUid).length;
+    console.log('✅ Prueba 1 — Leer TODOS los atletas: ACCESO CONCEDIDO');
+    console.log('   Total atletas en BD:', allCount);
+    console.log('   Atletas de este coach:', myCount);
+    if (myCount > 0) {
+      console.log('   ✅ Los atletas SÍ existen y tienen createdBy correcto');
+      // Forzar recarga
+      globalAthletes = {};
+      Object.entries(all).forEach(([k, v]) => {
+        if (v && v.createdBy === currentUserUid) globalAthletes[k] = v;
+      });
+      renderStandaloneAthleteList();
+      console.log('   ✅ globalAthletes recargado:', Object.keys(globalAthletes).length, 'atletas');
+    } else {
+      console.log('   ⚠️ No hay atletas con createdBy === UID del coach');
+      console.log('   ¿Quizás los atletas se registraron antes de que existiera el campo createdBy?');
+      // Mostrar algunos atletas para debug
+      const sample = Object.entries(all).slice(0, 3);
+      sample.forEach(([k, v]) => {
+        console.log('   Ejemplo atleta:', v.name, '| createdBy:', v.createdBy, '| UID coach:', currentUserUid);
+      });
+    }
+  } catch (err) {
+    console.log('❌ Prueba 1 — Leer TODOS los atletas: ACCESO DENEGADO');
+    console.log('   Error:', err.code || err.message);
+    
+    // Prueba 2: Query filtrado
+    try {
+      const q = query(ref(db, 'athletes'), orderByChild('createdBy'), equalTo(currentUserUid));
+      const filteredSnap = await get(q);
+      const filtered = filteredSnap.val() || {};
+      console.log('✅ Prueba 2 — Query filtrado: ACCESO CONCEDIDO');
+      console.log('   Atletas del coach:', Object.keys(filtered).length);
+      globalAthletes = filtered;
+      renderStandaloneAthleteList();
+    } catch (err2) {
+      console.log('❌ Prueba 2 — Query filtrado: ACCESO DENEGADO');
+      console.log('   Error:', err2.code || err2.message);
+      console.log('');
+      console.log('═══════════════════════════════════════════');
+      console.log('🚨 DIAGNÓSTICO: Las reglas de Firebase NO permiten que');
+      console.log('   el coach lea SUS atletas. Necesitas ajustar las reglas.');
+      console.log('');
+      console.log('   Reglas recomendadas en Firebase Console > Database > Rules:');
+      console.log('   {');
+      console.log('     "rules": {');
+      console.log('       "athletes": {');
+      console.log('         ".read": "auth != null",');
+      console.log('         ".write": "auth != null",');
+      console.log('         ".indexOn": ["createdBy"]');
+      console.log('       },');
+      console.log('       "roles": {');
+      console.log('         ".read": "auth != null",');
+      console.log('         ".write": "auth != null"');
+      console.log('       }');
+      console.log('     }');
+      console.log('   }');
+      console.log('═══════════════════════════════════════════');
+    }
+  }
+  
+  // Prueba 3: Verificar rol
+  try {
+    const roleSnap = await get(ref(db, `roles/${currentUserUid}`));
+    const rd = roleSnap.val();
+    console.log('📋 Rol en BD:', JSON.stringify(rd));
+  } catch (err) {
+    console.log('❌ No se pudo leer rol:', err.message);
+  }
+  
+  console.log('═══════════════════════════════════════════');
+}
+window.diagnosticCoachAccess = diagnosticCoachAccess;
+
 // Guardar referencia al listener activo para limpiarlo al reconectar
 let _athletesListenerCleanup = null;
 
@@ -2882,43 +2983,53 @@ function initGlobalAthletesObserver() {
   }
 
   const athletesRef = ref(db, 'athletes');
+  const uid = currentUserUid;
 
-  if (currentUserRole === 'coach' && currentUserUid) {
-    // Coach: leer todos y filtrar en cliente (más robusto que orderByChild)
+  if (currentUserRole === 'coach' && uid) {
+    // Coach: leer todos los atletas (reglas permiten .read: "auth != null")
+    // y filtrar en cliente por createdBy === uid
+    console.log('🏃 Iniciando observer de atletas para coach UID:', uid);
     const unsub = onValue(athletesRef, (snapshot) => {
       const all = snapshot.val() || {};
+      const totalCount = Object.keys(all).length;
+      console.log('🏃 Coach: Firebase devolvió', totalCount, 'atletas totales');
+      
       globalAthletes = {};
+      let myCount = 0;
       Object.entries(all).forEach(([k, v]) => {
-        if (v && v.createdBy === currentUserUid) globalAthletes[k] = v;
+        if (v && v.createdBy === uid) {
+          globalAthletes[k] = v;
+          myCount++;
+        }
       });
-      console.log('🏃 Coach ve', Object.keys(globalAthletes).length, 'atletas suyos');
+      
+      console.log('🏃 Coach: de esos,', myCount, 'tienen createdBy ===', uid);
+      
+      if (myCount === 0 && totalCount > 0) {
+        // Debug: mostrar algunos atletas para ver qué createdBy tienen
+        const sample = Object.entries(all).slice(0, 3);
+        sample.forEach(([k, v]) => {
+          console.log('   📋 Atleta:', v.name, '| createdBy:', JSON.stringify(v.createdBy), '| personType:', v.personType);
+        });
+      }
+      
       renderStandaloneAthleteList();
       renderPlayerRegistry();
     }, (err) => {
-      console.error('❌ Coach: error leyendo atletas:', err.code || err.message);
-      // Si las reglas de Firebase bloquean la lectura completa, 
-      // intentar con query filtrada como último recurso
-      try {
-        const coachQuery = query(
-          athletesRef,
-          orderByChild('createdBy'),
-          equalTo(currentUserUid)
-        );
-        onValue(coachQuery, (snap) => {
-          globalAthletes = snap.val() || {};
-          console.log('🏃 Coach (fallback query) ve', Object.keys(globalAthletes).length, 'atletas');
-          renderStandaloneAthleteList();
-          renderPlayerRegistry();
-        }, (e2) => {
-          console.error('❌ Fallback también falló:', e2.message);
-          globalAthletes = {};
-          renderStandaloneAthleteList();
-        });
-      } catch (e3) {
-        console.error('❌ Query fallback inválido:', e3.message);
+      console.error('❌ Coach: error leyendo /athletes:', err.code || err.message);
+      // Intentar con query filtrado como fallback
+      console.log('🔄 Intentando query filtrado...');
+      const coachQuery = query(athletesRef, orderByChild('createdBy'), equalTo(uid));
+      onValue(coachQuery, (snap) => {
+        globalAthletes = snap.val() || {};
+        console.log('🏃 Coach (query fallback):', Object.keys(globalAthletes).length, 'atletas');
+        renderStandaloneAthleteList();
+        renderPlayerRegistry();
+      }, (e2) => {
+        console.error('❌ Coach: ambos métodos fallaron:', e2.message);
         globalAthletes = {};
         renderStandaloneAthleteList();
-      }
+      });
     });
     _athletesListenerCleanup = unsub;
   } else {
@@ -3289,6 +3400,52 @@ function renderStandaloneAthleteList() {
 
   const showOwnerCol = currentUserRole !== 'coach';
 
+  // ── Helper: fila de atleta (definido ANTES de usarse) ──────────────────────
+  const buildAthleteRow = ([athleteId, p]) => {
+    const catLabel = categoriesConfig[p.category]?.label || p.category || '---';
+    const editable = canModifyAthlete(athleteId);
+    return `
+      <tr style="border-bottom:1px solid #333;">
+        <td style="padding:5px;"><img src="${p.photo || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;"></td>
+        <td style="text-align:center;font-family:monospace;font-size:0.78rem;color:#ff6b00;font-weight:bold;">${p.playerID || '—'}</td>
+        <td style="padding:5px;">${p.name}<br><small style="color:gray;">#${p.number || '--'} · ${p.club || ''}</small></td>
+        <td style="text-align:center;font-size:0.7rem;">${catLabel}</td>
+        <td style="text-align:center;">🩸 ${p.bloodType || '--'}<br>${p.birth || '--'}</td>
+        <td style="padding:5px;">${p.responsibleName || '--'}<br>📞 ${p.responsiblePhone || '--'}</td>
+        ${showOwnerCol ? `<td style="text-align:center;font-size:0.7rem;color:#aaa;">${p.createdByName || '---'}</td>` : ''}
+        <td style="padding:4px;">
+          <div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;align-items:center;">
+            ${currentUserRole === 'admin' ? `<button onclick="printStandaloneAthleteID('${athleteId}')" title="Imprimir Credencial" style="background:#10b981;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🪪</button>` : ''}
+            ${editable ? `<button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">✏️</button>
+            <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:#7f1d1d;border:none;color:#fca5a5;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🗑️</button>` : `<span style="color:#555;font-size:0.7rem;" title="Solo el entrenador que lo registró puede editarlo">🔒</span>`}
+          </div>
+        </td>
+      </tr>`;
+  };
+
+  // ── Helper: fila de entrenador (definido ANTES de usarse) ────────────────────
+  const buildCoachRow = ([athleteId, p]) => {
+    const catLabel = categoriesConfig[p.category]?.label || p.category || '---';
+    const editable = canModifyAthlete(athleteId);
+    return `
+      <tr style="border-bottom:1px solid #1e3a2f;">
+        <td style="padding:5px;"><img src="${p.photo || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #10b981;"></td>
+        <td style="text-align:center;font-family:monospace;font-size:0.78rem;color:#10b981;font-weight:bold;">${p.playerID || '—'}</td>
+        <td style="padding:5px;font-weight:bold;">${p.name}<br><small style="color:#10b981;font-weight:normal;">Club: ${p.club || '--'}</small></td>
+        <td style="text-align:center;font-size:0.7rem;">${catLabel}</td>
+        <td style="padding:5px;">${p.phone ? '📞 ' + p.phone : '--'}<br><small style="color:#aaa;">${p.email || ''}</small></td>
+        <td style="padding:5px;font-size:0.7rem;">${p.birth || '--'}<br><small style="color:#555;">${p.curp || ''}</small></td>
+        ${showOwnerCol ? `<td style="text-align:center;font-size:0.7rem;color:#aaa;">${p.createdByName || '---'}</td>` : ''}
+        <td style="padding:4px;">
+          <div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;align-items:center;">
+            ${currentUserRole === 'admin' ? `<button onclick="printStandaloneCoachID('${athleteId}')" title="Credencial Entrenador" style="background:#10b981;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🪪</button>` : ''}
+            ${editable ? `<button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">✏️</button>
+            <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:#7f1d1d;border:none;color:#fca5a5;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🗑️</button>` : `<span style="color:#555;font-size:0.7rem;">🔒</span>`}
+          </div>
+        </td>
+      </tr>`;
+  };
+
   // ── Pre-construir sección de atletas agrupados por club ─────────────────────
   let athletesByClubHTML = '';
   if (athletes.length === 0) {
@@ -3321,51 +3478,7 @@ function renderStandaloneAthleteList() {
     }).join('');
   }
 
-  // ── Helper: fila de atleta ──────────────────────────────────────────────────
-  const buildAthleteRow = ([athleteId, p]) => {
-    const catLabel = categoriesConfig[p.category]?.label || p.category || '---';
-    const editable = canModifyAthlete(athleteId);
-    return `
-      <tr style="border-bottom:1px solid #333;">
-        <td style="padding:5px;"><img src="${p.photo || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;"></td>
-        <td style="text-align:center;font-family:monospace;font-size:0.78rem;color:#ff6b00;font-weight:bold;">${p.playerID || '—'}</td>
-        <td style="padding:5px;">${p.name}<br><small style="color:gray;">#${p.number || '--'} · ${p.club || ''}</small></td>
-        <td style="text-align:center;font-size:0.7rem;">${catLabel}</td>
-        <td style="text-align:center;">🩸 ${p.bloodType || '--'}<br>${p.birth || '--'}</td>
-        <td style="padding:5px;">${p.responsibleName || '--'}<br>📞 ${p.responsiblePhone || '--'}</td>
-        ${showOwnerCol ? `<td style="text-align:center;font-size:0.7rem;color:#aaa;">${p.createdByName || '---'}</td>` : ''}
-        <td style="padding:4px;">
-          <div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;align-items:center;">
-            ${currentUserRole === 'admin' ? `<button onclick="printStandaloneAthleteID('${athleteId}')" title="Imprimir Credencial" style="background:#10b981;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🪪</button>` : ''}
-            ${editable ? `<button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">✏️</button>
-            <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:#7f1d1d;border:none;color:#fca5a5;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🗑️</button>` : `<span style="color:#555;font-size:0.7rem;" title="Solo el entrenador que lo registró puede editarlo">🔒</span>`}
-          </div>
-        </td>
-      </tr>`;
-  };
 
-  // ── Helper: fila de entrenador ──────────────────────────────────────────────
-  const buildCoachRow = ([athleteId, p]) => {
-    const catLabel = categoriesConfig[p.category]?.label || p.category || '---';
-    const editable = canModifyAthlete(athleteId);
-    return `
-      <tr style="border-bottom:1px solid #1e3a2f;">
-        <td style="padding:5px;"><img src="${p.photo || 'https://via.placeholder.com/40'}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #10b981;"></td>
-        <td style="text-align:center;font-family:monospace;font-size:0.78rem;color:#10b981;font-weight:bold;">${p.playerID || '—'}</td>
-        <td style="padding:5px;font-weight:bold;">${p.name}<br><small style="color:#10b981;font-weight:normal;">Club: ${p.club || '--'}</small></td>
-        <td style="text-align:center;font-size:0.7rem;">${catLabel}</td>
-        <td style="padding:5px;">${p.phone ? '📞 ' + p.phone : '--'}<br><small style="color:#aaa;">${p.email || ''}</small></td>
-        <td style="padding:5px;font-size:0.7rem;">${p.birth || '--'}<br><small style="color:#555;">${p.curp || ''}</small></td>
-        ${showOwnerCol ? `<td style="text-align:center;font-size:0.7rem;color:#aaa;">${p.createdByName || '---'}</td>` : ''}
-        <td style="padding:4px;">
-          <div style="display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;align-items:center;">
-            ${currentUserRole === 'admin' ? `<button onclick="printStandaloneCoachID('${athleteId}')" title="Credencial Entrenador" style="background:#10b981;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🪪</button>` : ''}
-            ${editable ? `<button onclick="loadStandaloneAthleteForEdit('${athleteId}')" title="Editar" style="background:#334155;color:white;border:none;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">✏️</button>
-            <button onclick="deleteStandaloneAthlete('${athleteId}')" title="Borrar" style="background:#7f1d1d;border:none;color:#fca5a5;padding:5px 7px;border-radius:4px;cursor:pointer;font-size:0.85rem;">🗑️</button>` : `<span style="color:#555;font-size:0.7rem;">🔒</span>`}
-          </div>
-        </td>
-      </tr>`;
-  };
 
   // ── Construir HTML completo ─────────────────────────────────────────────────
   let html = `
