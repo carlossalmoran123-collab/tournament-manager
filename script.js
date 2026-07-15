@@ -210,10 +210,16 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('btnGoToStandaloneAthletes').style.display = 'block';
         document.getElementById('btnGoToStandaloneAthletes').innerText = `🪪 Registrar mis Jugadores (${currentUserName})`;
       }
+      // Mostrar botones de cerrar sesión para el coach
+      if (document.getElementById('btnCoachLogout')) document.getElementById('btnCoachLogout').style.display = 'block';
+      if (document.getElementById('btnCoachLogoutSelector')) document.getElementById('btnCoachLogoutSelector').style.display = 'block';
     } else {
       // Administrador: acceso total
       if (document.getElementById('btnGoToAdminPrep')) document.getElementById('btnGoToAdminPrep').style.display = 'block';
       if (document.getElementById('admin-dashboard-panels')) document.getElementById('admin-dashboard-panels').style.display = 'grid';
+      // El admin usa su propio botón de logout, ocultar el del coach
+      if (document.getElementById('btnCoachLogout')) document.getElementById('btnCoachLogout').style.display = 'none';
+      if (document.getElementById('btnCoachLogoutSelector')) document.getElementById('btnCoachLogoutSelector').style.display = 'none';
       if (document.getElementById('btnGoToStandaloneAthletes')) {
         document.getElementById('btnGoToStandaloneAthletes').style.display = 'block';
         document.getElementById('btnGoToStandaloneAthletes').innerText = '🪪 Registro y Credenciales de Atletas';
@@ -238,6 +244,8 @@ onAuthStateChanged(auth, async (user) => {
     syncFloatingAdminBtn('public');
     if (document.getElementById('admin-login-box'))    document.getElementById('admin-login-box').style.display = 'flex';
     if (document.getElementById('btnGoToAdminPrep'))   document.getElementById('btnGoToAdminPrep').style.display = 'none';
+    if (document.getElementById('btnCoachLogout')) document.getElementById('btnCoachLogout').style.display = 'none';
+    if (document.getElementById('btnCoachLogoutSelector')) document.getElementById('btnCoachLogoutSelector').style.display = 'none';
     if (document.getElementById('btnGoToStandaloneAthletes')) document.getElementById('btnGoToStandaloneAthletes').style.display = 'none';
     if (document.getElementById('admin-dashboard-panels')) document.getElementById('admin-dashboard-panels').style.display = 'none';
     applyRoleBasedNavVisibility();
@@ -317,6 +325,7 @@ async function handleLogout() {
   await signOut(auth);
   location.reload();
 }
+window.handleLogout = handleLogout;
 
 // ✅ CORRECCIÓN: signOutAdmin — usada en el botón del Panel Master
 async function signOutAdmin() {
