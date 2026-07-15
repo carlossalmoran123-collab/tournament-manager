@@ -227,6 +227,12 @@ onAuthStateChanged(auth, async (user) => {
     currentUserUid  = null;
     currentUserName = '';
     document.body.classList.remove('is-admin');
+    // Limpiar listener de atletas al cerrar sesión
+    if (_athletesListenerCleanup) {
+      _athletesListenerCleanup();
+      _athletesListenerCleanup = null;
+    }
+    globalAthletes = {};
     syncFloatingAdminBtn('public');
     if (document.getElementById('admin-login-box'))    document.getElementById('admin-login-box').style.display = 'flex';
     if (document.getElementById('btnGoToAdminPrep'))   document.getElementById('btnGoToAdminPrep').style.display = 'none';
@@ -2865,38 +2871,69 @@ let globalAthletes = {};
 // globalAllTeams ya se declara al inicio del archivo (movido para evitar hoisting issues)
 let standaloneSearchTerm = '';
 
+// Guardar referencia al listener activo para limpiarlo al reconectar
+let _athletesListenerCleanup = null;
+
 function initGlobalAthletesObserver() {
+  // Limpiar listener anterior si existe (evita listeners duplicados)
+  if (_athletesListenerCleanup) {
+    _athletesListenerCleanup();
+    _athletesListenerCleanup = null;
+  }
+
+  const athletesRef = ref(db, 'athletes');
+
   if (currentUserRole === 'coach' && currentUserUid) {
-    // Coach: solo lee SUS propios atletas (filtra por createdBy en Firebase)
-    const coachQuery = query(
-      ref(db, 'athletes'),
-      orderByChild('createdBy'),
-      equalTo(currentUserUid)
-    );
-    onValue(coachQuery, (snapshot) => {
-      globalAthletes = snapshot.val() || {};
+    // Coach: leer todos y filtrar en cliente (más robusto que orderByChild)
+    const unsub = onValue(athletesRef, (snapshot) => {
+      const all = snapshot.val() || {};
+      globalAthletes = {};
+      Object.entries(all).forEach(([k, v]) => {
+        if (v && v.createdBy === currentUserUid) globalAthletes[k] = v;
+      });
+      console.log('🏃 Coach ve', Object.keys(globalAthletes).length, 'atletas suyos');
       renderStandaloneAthleteList();
       renderPlayerRegistry();
     }, (err) => {
-      console.warn('Coach: error leyendo atletas filtrados:', err.message);
-      // Fallback: leer todos y filtrar en cliente
-      onValue(ref(db, 'athletes'), (snapshot) => {
-        const all = snapshot.val() || {};
-        globalAthletes = {};
-        Object.entries(all).forEach(([k, v]) => {
-          if (v && v.createdBy === currentUserUid) globalAthletes[k] = v;
+      console.error('❌ Coach: error leyendo atletas:', err.code || err.message);
+      // Si las reglas de Firebase bloquean la lectura completa, 
+      // intentar con query filtrada como último recurso
+      try {
+        const coachQuery = query(
+          athletesRef,
+          orderByChild('createdBy'),
+          equalTo(currentUserUid)
+        );
+        onValue(coachQuery, (snap) => {
+          globalAthletes = snap.val() || {};
+          console.log('🏃 Coach (fallback query) ve', Object.keys(globalAthletes).length, 'atletas');
+          renderStandaloneAthleteList();
+          renderPlayerRegistry();
+        }, (e2) => {
+          console.error('❌ Fallback también falló:', e2.message);
+          globalAthletes = {};
+          renderStandaloneAthleteList();
         });
+      } catch (e3) {
+        console.error('❌ Query fallback inválido:', e3.message);
+        globalAthletes = {};
         renderStandaloneAthleteList();
-        renderPlayerRegistry();
-      });
+      }
     });
+    _athletesListenerCleanup = unsub;
   } else {
     // Admin: lee todos
-    onValue(ref(db, 'athletes'), (snapshot) => {
+    const unsub = onValue(athletesRef, (snapshot) => {
       globalAthletes = snapshot.val() || {};
+      console.log('🏃 Admin ve', Object.keys(globalAthletes).length, 'atletas totales');
       renderStandaloneAthleteList();
       renderPlayerRegistry();
+    }, (err) => {
+      console.error('❌ Admin: error leyendo atletas:', err.message);
+      globalAthletes = {};
+      renderStandaloneAthleteList();
     });
+    _athletesListenerCleanup = unsub;
   }
 }
 
